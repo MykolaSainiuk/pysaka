@@ -38,8 +38,7 @@ test('Log to fallback stream: no logs lost', async (t) => {
   }, 50);
 });
 
-test.only('Log to fallback stream: no logs lost. Unavailability twice', async (t) => {
-  t.runOnly(true);
+test('Log to fallback stream: no logs lost. Unavailability twice', async (t) => {
   const logger = new PysakaLogger();
 
   logger.log('-------------------->');
@@ -61,6 +60,27 @@ test.only('Log to fallback stream: no logs lost. Unavailability twice', async (t
       process.stdout.uncork();
     }
     if (i === 180) {
+      clearInterval(id);
+    }
+  }, 50);
+});
+
+test('No fallback stream: logs lost bcz no fallback support', async (t) => {
+  const logger = new PysakaLogger({ fallbackSupport: false });
+
+  logger.log('-------------------->');
+
+  let i = 0;
+  const id = setInterval(() => {
+    logger.log('step: ', i, '    ' + '*'.repeat(1e3));
+    i++;
+    if (i === 10) {
+      process.stdout.cork();
+    }
+    if (i === 70) {
+      process.stdout.uncork();
+    }
+    if (i === 90) {
       clearInterval(id);
     }
   }, 50);

@@ -4,7 +4,8 @@
   "description": "Async threaded logger",
   "main": "dist/index.js",
   "scripts": {
-    "test": "npm run build && node --test-only ./dist/tests/index.js",
+    "test:only": "npm run build && node --test-only ./dist/tests/index.js",
+    "test": "npm run build && node --test ./dist/tests/index.js",
     "lint": "eslint --ext .ts ./src",
     "format": "prettier --write \"src/**/*.ts\"",
     "build": "tsc -p .",

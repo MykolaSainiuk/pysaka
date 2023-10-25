@@ -65,24 +65,25 @@ export class PysakaLogger implements IPysakaLogger {
 
   private static __singleInstance: Record<string, PysakaLogger> = {};
 
-  constructor(params: PysakaLoggerParams = DEFAULT_PARAMS) {
-    // TODo: singleton for now
-    const paramsStringified = JSON.stringify(params);
+  constructor(__params?: PysakaLoggerParams) {
+    // TODO: singleton for now
+    const paramsStringified = JSON.stringify(__params ?? {});
     if (PysakaLogger.__singleInstance[paramsStringified]) {
       return PysakaLogger.__singleInstance[paramsStringified];
     }
     PysakaLogger.__singleInstance[paramsStringified] = this;
 
+    const params = { ...DEFAULT_PARAMS, ...__params };
     this.destination = params.destination;
-    this.fallbackSupportEnabled = params.fallbackSupport;
-    this.severity = params.severity;
-    this.format = params.format;
-
     // TODO: surround with atomics
     this.destinationUnavailable = !this.destination.writable;
     if (this.destinationUnavailable) {
       throw new Error('Pysaka: Destination is not writable');
     }
+
+    this.fallbackSupportEnabled = params.fallbackSupport;
+    this.severity = params.severity;
+    this.format = params.format;
 
     try {
       this.init();

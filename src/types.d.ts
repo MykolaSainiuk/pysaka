@@ -5,10 +5,10 @@ import { PrintFormatEnum, SeverityLevelEnum } from './enums';
 export type DestinationType = Writable;
 
 export type PysakaLoggerParams = {
-  destination: DestinationType;
-  fallbackSupport: boolean;
-  severity: SeverityLevelEnum;
-  format: PrintFormatEnum;
+  destination?: DestinationType;
+  fallbackSupport?: boolean;
+  severity?: SeverityLevelEnum;
+  format?: PrintFormatEnum;
   prefix?: string;
   name?: string;
 };
