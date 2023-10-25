@@ -1,6 +1,4 @@
-import { EventEmitter } from 'node:events';
-import { WriteStream } from 'node:fs';
-import { unlink } from 'node:fs/promises';
+import { WriteStream, unlinkSync } from 'node:fs';
 import { Duplex, PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
@@ -10,15 +8,18 @@ import type {
   IPysakaLogger,
   PysakaLoggerParams,
 } from './types';
-import { openFileSafelyAsStream } from './util';
+import { openFileInSyncWay } from './util';
 
-EventEmitter.defaultMaxListeners = 100;
+// EventEmitter.defaultMaxListeners = 100;
 
 const DEFAULT_PARAMS: PysakaLoggerParams = {
   destination: process.stdout, // TODO
+  fallbackSupport: true,
   severity: SeverityLevelEnum.INFO,
   format: PrintFormatEnum.JSON,
 };
+
+const DEFAULT_STREAMS_RECOVERY_TIMEOUT = 1000;
 
 export class PysakaLogger implements IPysakaLogger {
   private destination: DestinationType;
@@ -52,6 +53,7 @@ export class PysakaLogger implements IPysakaLogger {
   private proxyOutputStreamAC: AbortController;
   private proxyOutputSteamBufferSize: number; // in bytes
 
+  private fallbackSupportEnabled: boolean;
   private fallbackStream: Duplex;
   private fallbackStreamAC: AbortController;
   private fallbackFilePath: string;
@@ -59,6 +61,7 @@ export class PysakaLogger implements IPysakaLogger {
   private fallbackWStream: WriteStream;
   private fallbackWStreamAC: AbortController;
   private fallbackItemsCount: number = 0;
+  private fallbackCheckId: NodeJS.Timeout | null;
 
   private static __singleInstance: Record<string, PysakaLogger> = {};
 
@@ -71,6 +74,7 @@ export class PysakaLogger implements IPysakaLogger {
     PysakaLogger.__singleInstance[paramsStringified] = this;
 
     this.destination = params.destination;
+    this.fallbackSupportEnabled = params.fallbackSupport;
     this.severity = params.severity;
     this.format = params.format;
 
@@ -80,15 +84,24 @@ export class PysakaLogger implements IPysakaLogger {
       throw new Error('Pysaka: Destination is not writable');
     }
 
-    this.init().catch((err) => {
-      process.stderr.end(err.message);
+    try {
+      this.init();
+    } catch (err) {
+      process.stderr.write(err.message);
       this.shutdown();
       throw new Error('Pysaka: Failed to initialize logger. Pardon me');
-    });
+    }
     process.once('exit', this.shutdown.bind(this));
   }
 
-  private async init() {
+  private init() {
+    this.initOutputStream();
+    this.fallbackSupportEnabled && this.initFallbackStream();
+
+    process.stdout.write('Pysaka: Logger initialized\n');
+  }
+
+  private initOutputStream() {
     this.proxyOutputStreamAC = new AbortController();
     this.proxyOutputSteamBufferSize = 5e5; // 5 MB
     this.proxyOutputSteam = new PassThrough({
@@ -97,7 +110,9 @@ export class PysakaLogger implements IPysakaLogger {
     });
 
     this.pipeOutputToDestination();
+  }
 
+  private initFallbackStream() {
     this.fallbackStreamBufferSize = 5e5; // 500kb bcz RAM is cheap :)
     this.fallbackStreamAC = new AbortController();
     this.fallbackStream = new PassThrough({
@@ -105,9 +120,9 @@ export class PysakaLogger implements IPysakaLogger {
       signal: this.fallbackStreamAC.signal,
     });
 
-    this.fallbackFilePath = `${process.cwd()}/pysaka_${Date.now()}.log`;
     this.fallbackWStreamAC = new AbortController();
-    this.fallbackWStream = await openFileSafelyAsStream(
+    this.fallbackFilePath = `${process.cwd()}/__temp/pysaka_${Date.now()}.log`;
+    this.fallbackWStream = openFileInSyncWay(
       this.fallbackFilePath,
       this.serializerEncoding,
       this.fallbackStreamBufferSize,
@@ -115,21 +130,14 @@ export class PysakaLogger implements IPysakaLogger {
     );
 
     this.pipeFallbackStream();
-
-    process.stdout.write('Pysaka: Logger initialized\n');
-
-    // Promise.all([proxyOutputPromise, fallbackStreamPromise])
-    //   .then()
-    //   .catch((err) => process.stderr.end(err.message))
-    //   .finally(this.shutdown.bind(this));
   }
 
-  private async shutdown() {
+  private shutdown() {
     this.proxyOutputStreamAC?.abort();
     if (this.fallbackStreamAC) {
       this.fallbackStreamAC.abort();
       this.fallbackWStreamAC.abort();
-      await unlink(this.fallbackFilePath);
+      unlinkSync(this.fallbackFilePath);
     }
   }
 
@@ -155,13 +163,13 @@ export class PysakaLogger implements IPysakaLogger {
         end: false,
       });
     } catch (err) {
-      process.stderr.end(err.message);
-    } finally {
+      process.stderr.write(err.message);
+
       if (!this.isDestinationAvailable()) {
         this.destinationUnavailable = true;
         this.destinationCheckId = setTimeout(
           () => this.pipeOutputToDestination(),
-          1000,
+          DEFAULT_STREAMS_RECOVERY_TIMEOUT,
         );
       }
     }
@@ -170,26 +178,37 @@ export class PysakaLogger implements IPysakaLogger {
   private async pipeFallbackStream() {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const that = this;
-    Promise.all([
-      pipeline(
-        this.fallbackStream,
-        async function* incRestoreCounter(logs: AsyncIterable<Buffer>) {
-          for await (const log of logs) {
-            that.fallbackItemsCount++;
-            yield log;
-          }
-        },
-        this.fallbackWStream,
-        {
+    this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
+    try {
+      await Promise.all([
+        pipeline(
+          this.fallbackStream,
+          async function* incRestoreCounter(logs: AsyncIterable<Buffer>) {
+            for await (const log of logs) {
+              that.fallbackItemsCount++;
+              yield log;
+            }
+          },
+          this.fallbackWStream,
+          {
+            signal: this.fallbackStreamAC.signal,
+            end: false,
+          },
+        ),
+        pipeline(this.fallbackStream, this.proxyOutputSteam, {
           signal: this.fallbackStreamAC.signal,
           end: false,
-        },
-      ),
-      pipeline(this.fallbackStream, this.proxyOutputSteam, {
-        signal: this.fallbackStreamAC.signal,
-        end: false,
-      }),
-    ]);
+        }),
+      ]);
+    } catch (err) {
+      process.stderr.write(err.message);
+
+      this.fallbackSupportEnabled = false;
+      this.fallbackCheckId = setTimeout(
+        () => this.initFallbackStream(),
+        DEFAULT_STREAMS_RECOVERY_TIMEOUT,
+      );
+    }
   }
 
   // TODO: implement bcz slowest place must be
@@ -211,14 +230,15 @@ export class PysakaLogger implements IPysakaLogger {
 
   private __write(content: Buffer): Promise<void> {
     if (!this.isDestinationAvailable()) {
-      this.fallbackWrite(content);
+      this.fallbackSupportEnabled && this.fallbackWrite(content);
       return;
     }
 
     this.proxyOutputSteam.write(
       content,
       this.serializerEncoding,
-      (err) => err && this.fallbackWrite(content),
+      (err) =>
+        err && this.fallbackSupportEnabled && this.fallbackWrite(content),
     );
 
     if (this.proxyOutputSteam.writableNeedDrain) {

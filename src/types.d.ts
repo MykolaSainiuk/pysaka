@@ -6,6 +6,7 @@ export type DestinationType = Writable;
 
 export type PysakaLoggerParams = {
   destination: DestinationType;
+  fallbackSupport: boolean;
   severity: SeverityLevelEnum;
   format: PrintFormatEnum;
   prefix?: string;
