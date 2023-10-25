@@ -2,48 +2,29 @@ import { WriteStream, unlinkSync } from 'node:fs';
 import { Duplex, PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
-import { PrintFormatEnum, SeverityLevelEnum } from './enums';
+import {
+  DEFAULT_LOGGER_PARAMS,
+  DEFAULT_STREAMS_RECOVERY_TIMEOUT,
+  LOGGER_PREFIX,
+} from './consts';
+import {
+  PrintFormatEnum,
+  SeverityLevelEnum,
+  SeverityLevelValueToKey,
+} from './enums';
 import type {
   DestinationType,
   IPysakaLogger,
+  LogItem,
   PysakaLoggerParams,
 } from './types';
 import { openFileInSyncWay } from './util';
 
 // EventEmitter.defaultMaxListeners = 100;
-
-const DEFAULT_PARAMS: PysakaLoggerParams = {
-  destination: process.stdout, // TODO
-  fallbackSupport: true,
-  severity: SeverityLevelEnum.INFO,
-  format: PrintFormatEnum.JSON,
-};
-
-const DEFAULT_STREAMS_RECOVERY_TIMEOUT = 1000;
-
 export class PysakaLogger implements IPysakaLogger {
   private destination: DestinationType;
   private severity: SeverityLevelEnum;
   private format: PrintFormatEnum;
-
-  log(...args: any[]): this {
-    return this.write(SeverityLevelEnum.INFO, ...args);
-  }
-  info(...args: any[]): this {
-    return this.write(SeverityLevelEnum.INFO, ...args);
-  }
-  warn(...args: any[]): this {
-    return this.write(SeverityLevelEnum.WARN, ...args);
-  }
-  error(...args: any[]): this {
-    return this.write(SeverityLevelEnum.ERROR, ...args);
-  }
-  debug(...args: any[]): this {
-    return this.write(SeverityLevelEnum.DEBUG, ...args);
-  }
-  critical(...args: any[]): this {
-    return this.write(SeverityLevelEnum.CRITICAL, ...args);
-  }
 
   private destinationUnavailable: boolean = false;
   private destinationCheckId: NodeJS.Timeout | null;
@@ -73,12 +54,12 @@ export class PysakaLogger implements IPysakaLogger {
     }
     PysakaLogger.__singleInstance[paramsStringified] = this;
 
-    const params = { ...DEFAULT_PARAMS, ...__params };
+    const params = { ...DEFAULT_LOGGER_PARAMS, ...__params };
     this.destination = params.destination;
     // TODO: surround with atomics
     this.destinationUnavailable = !this.destination.writable;
     if (this.destinationUnavailable) {
-      throw new Error('Pysaka: Destination is not writable');
+      throw new Error(`${LOGGER_PREFIX} Destination is not writable`);
     }
 
     this.fallbackSupportEnabled = params.fallbackSupport;
@@ -88,9 +69,11 @@ export class PysakaLogger implements IPysakaLogger {
     try {
       this.init();
     } catch (err) {
-      process.stderr.write(err.message);
+      process.stderr.write(LOGGER_PREFIX + ' ' + err.message);
       this.shutdown();
-      throw new Error('Pysaka: Failed to initialize logger. Pardon me');
+      throw new Error(
+        `${LOGGER_PREFIX} Failed to initialize logger. Pardon me`,
+      );
     }
     process.once('exit', this.shutdown.bind(this));
   }
@@ -99,7 +82,7 @@ export class PysakaLogger implements IPysakaLogger {
     this.initOutputStream();
     this.fallbackSupportEnabled && this.initFallbackStream();
 
-    process.stdout.write('Pysaka: Logger initialized\n');
+    process.stdout.write(`${LOGGER_PREFIX} Logger initialized\n`);
   }
 
   private initOutputStream() {
@@ -164,7 +147,7 @@ export class PysakaLogger implements IPysakaLogger {
         end: false,
       });
     } catch (err) {
-      process.stderr.write(err.message);
+      process.stderr.write(LOGGER_PREFIX + ' ' + err.message);
 
       if (!this.isDestinationAvailable()) {
         this.destinationUnavailable = true;
@@ -202,7 +185,7 @@ export class PysakaLogger implements IPysakaLogger {
         }),
       ]);
     } catch (err) {
-      process.stderr.write(err.message);
+      process.stderr.write(LOGGER_PREFIX + ' ' + err.message);
 
       this.fallbackSupportEnabled = false;
       this.fallbackCheckId = setTimeout(
@@ -212,21 +195,91 @@ export class PysakaLogger implements IPysakaLogger {
     }
   }
 
-  // TODO: implement bcz slowest place must be
-  private serialize(args: any[]): Buffer {
-    return Buffer.from(JSON.stringify(args) + '\n', this.serializerEncoding);
+  public log(...args: any[]): this {
+    return this.write(SeverityLevelEnum.INFO, ...args);
+  }
+  public info(...args: any[]): this {
+    return this.write(SeverityLevelEnum.INFO, ...args);
+  }
+  public warn(...args: any[]): this {
+    return this.write(SeverityLevelEnum.WARN, ...args);
+  }
+  public error(...args: any[]): this {
+    return this.write(SeverityLevelEnum.ERROR, ...args);
+  }
+  public debug(...args: any[]): this {
+    return this.write(SeverityLevelEnum.DEBUG, ...args);
+  }
+  public critical(...args: any[]): this {
+    return this.write(SeverityLevelEnum.CRITICAL, ...args);
   }
 
+  // TODO: implement bcz slowest place must be
   private write(logLevel: SeverityLevelEnum, ...args: any[]): this {
     if (logLevel < this.severity) {
       return this;
     }
 
     // TODO: must be a BOTTLENECK
-    const argsToPrintAsBuffer: Buffer = this.serialize(args);
-    this.__write(argsToPrintAsBuffer);
+    const logContent: Buffer =
+      this.format === PrintFormatEnum.JSON
+        ? this.serializeJSON(args)
+        : this.serializeText(args);
+
+    this.__write(logContent);
 
     return this;
+  }
+
+  private serializeJSON(args: any[]): Buffer {
+    const logObj: LogItem = this.getLogItem(args);
+
+    return Buffer.from(
+      JSON.stringify(logObj, undefined, 0),
+      this.serializerEncoding,
+    );
+  }
+
+  private getLogItem([msg, ...rest]: any[]): LogItem {
+    const logObj: LogItem = {
+      time: Date.now(),
+      level: SeverityLevelValueToKey[this.severity] ?? this.severity,
+      pid: process.pid,
+    };
+    const dataKey =
+      this.severity >= SeverityLevelEnum.ERROR ? 'errors' : 'data';
+    if (typeof msg === 'string' || msg instanceof String) {
+      logObj.msg = String(msg);
+    } else {
+      rest.unshift(msg);
+    }
+    if (rest.length) {
+      logObj[dataKey] = rest;
+    }
+
+    return logObj;
+  }
+
+  // TODO: implement text print
+  private serializeText(args: any[]): Buffer {
+    const logObj: LogItem = this.getLogItem(args);
+
+    let str = `[${this.getLocaleTimestamp(logObj.time)}] ${logObj.level} (${
+      logObj.pid
+    })`;
+    if (logObj.msg) {
+      str += ` "${logObj.msg}"`;
+    }
+    if (logObj.data || logObj.errors) {
+      str += ` :: ${JSON.stringify(logObj.data ?? logObj.errors)}`;
+    }
+
+    return Buffer.from(str, this.serializerEncoding);
+  }
+
+  private getLocaleTimestamp(t: number = Date.now()) {
+    const d = new Date(t);
+    return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
   }
 
   private __write(content: Buffer): Promise<void> {
@@ -236,7 +289,7 @@ export class PysakaLogger implements IPysakaLogger {
     }
 
     this.proxyOutputSteam.write(
-      content,
+      content + '\n',
       this.serializerEncoding,
       (err) =>
         err && this.fallbackSupportEnabled && this.fallbackWrite(content),
@@ -245,6 +298,7 @@ export class PysakaLogger implements IPysakaLogger {
     if (this.proxyOutputSteam.writableNeedDrain) {
       this.proxyOutputSteam.emit('drain');
     }
+    // TODO: reason about shrinking the fallback file
     // if (this.fallbackItemsCount) {
     //   setTimeout(() => truncateFile(this.fallbackFilePath), 10);
     //   this.fallbackItemsCount = 0;
@@ -253,9 +307,10 @@ export class PysakaLogger implements IPysakaLogger {
 
   private fallbackWrite(content: Buffer): void {
     if (!this.fallbackStream.writable) {
-      process.stderr.write('Pysaka: fallback stream is unavailable\n');
+      process.stderr.write(`${LOGGER_PREFIX} Fallback stream is unavailable\n`);
       process.stderr.write(
-        'Pysaka: Lost content:\n' + content.toString(this.serializerEncoding),
+        `${LOGGER_PREFIX} Lost content(nl):\n` +
+          content.toString(this.serializerEncoding),
       );
       return;
     }

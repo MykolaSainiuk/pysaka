@@ -21,3 +21,13 @@ export interface IPysakaLogger {
   debug(...args: any[]): this;
   critical(...args: any[]): this;
 }
+
+export type LogItem = {
+  time: number;
+  level: string | SeverityLevelEnum;
+  pid: number;
+
+  msg?: string;
+  data?: any[];
+  errors?: any[];
+};

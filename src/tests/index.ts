@@ -12,8 +12,13 @@ test.skip('test to caboom!', (t) => {
   assert.equal(false, true);
 });
 
-test('Log smth', (t) => {
+test('Log msg', (t) => {
   const logger = new PysakaLogger();
+  logger.log('Hello, world!');
+});
+
+test.only('Log smth more', (t) => {
+  const logger = new PysakaLogger({ format: 'text' as any });
   logger.log('info', 'Hello, world!', { foo: 'bar' });
 });
 
