@@ -14,6 +14,6 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "incremental": true,
-    "allowJs": true
+    "allowJs": true,
   }
 }

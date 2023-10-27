@@ -1,5 +1,5 @@
 import { PrintFormatEnum, SeverityLevelEnum } from './enums';
-import { PysakaLoggerParams } from './types';
+import type { PysakaLoggerParams } from './types.d';
 
 export const DEFAULT_LOGGER_PARAMS: PysakaLoggerParams = {
   destination: process.stdout, // TODO

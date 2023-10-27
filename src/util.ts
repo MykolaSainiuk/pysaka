@@ -13,7 +13,7 @@ export const openFileInSyncWay = (
   filePath: string,
   encoding: BufferEncoding,
   highWaterMark: number,
-  signal: AbortSignal,
+  signal?: AbortSignal,
 ): WriteStream => {
   const filePaths = filePath.split('/');
   const cwd = process.cwd();
@@ -102,3 +102,11 @@ function createEmptyDir(dirPath: string) {
     throw err;
   }
 }
+
+export const generateNumericId = (l: number = 10): string => {
+  let n = '';
+  for (let i = 0; i < l; ++i) {
+    n += Math.floor(Math.random() * 10);
+  }
+  return n;
+};
