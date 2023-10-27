@@ -378,3 +378,5 @@ export class PysakaLogger implements IPysakaLogger {
     await this.gracefulShutdown();
   }
 }
+
+export default PysakaLogger;
