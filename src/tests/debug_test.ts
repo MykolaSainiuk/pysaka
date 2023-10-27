@@ -4,7 +4,7 @@ import { PysakaLogger } from '../logger';
 
 const logger = new PysakaLogger({
   format: 'text' as any,
-  fallbackSupport: false,
+  fallbackSupport: true,
 });
 
 logger.log('-------------------->');
@@ -16,7 +16,7 @@ logger.log('some text', 'Hello, world!', {
 
 logger.log('<--------------------');
 
-logger.gracefulShutdown();
+logger.close();
 
 // let i = 0;
 

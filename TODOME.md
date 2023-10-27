@@ -1,7 +1,11 @@
 TODO list
-- add metadata for the log (date, level, pid, tracid)
+- add metadata for the log (date, level, pid, tracid)ʼ
+  - reqId or traceId
 - add Worker Pool
+  - replace single worker with a pool
 - improve serialization (de-async)
+  - find new data structure?
 - add formatter (color)
+  - add color
 - periodic checks for fallback file
   - defuse the existing pipeline?

@@ -1,7 +1,7 @@
 import { WriteStream, unlinkSync } from 'node:fs';
 import path from 'node:path';
-import { Duplex, PassThrough, once } from 'node:stream';
-import { finished, pipeline } from 'node:stream/promises';
+import { Duplex, PassThrough, once, pipeline } from 'node:stream';
+import { finished } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
 
 import {
@@ -29,24 +29,22 @@ export class PysakaLogger implements IPysakaLogger {
   private serializerEncoding: BufferEncoding = 'utf-8';
 
   private proxyOutputSteam: Duplex;
-  private proxyOutputStreamAC: AbortController;
   private proxyOutputSteamBufferSize: number; // in bytes
 
   private fallbackSupportEnabled: boolean;
   private fallbackStream: Duplex;
-  private fallbackStreamAC: AbortController;
   private fallbackFilePath: string;
   private fallbackStreamBufferSize: number; // in bytes
   private fallbackWStream: WriteStream;
-  private fallbackWStreamAC: AbortController;
   private fallbackItemsCount: number = 0;
   private fallbackCheckId: NodeJS.Timeout | null;
 
   private loggerId: string;
-  private logWorkerAC: AbortController;
   private logWorker: Worker;
   private serializer: LogSerializer;
 
+  private streamsToDestroy = [];
+  private isDestroyed: boolean = false;
   private static __singleInstance: Record<string, PysakaLogger> = {};
 
   constructor(__params?: PysakaLoggerParams) {
@@ -73,13 +71,13 @@ export class PysakaLogger implements IPysakaLogger {
       this.init();
     } catch (err) {
       process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
-      this.shutdown();
+      this.destructor();
       throw new Error(
         `${LOGGER_PREFIX} Failed to initialize logger. Pardon me`,
       );
     }
 
-    // process.once('exit', this.shutdown.bind(this));
+    process.once('exit', this.destructor.bind(this));
   }
 
   private init() {
@@ -94,11 +92,11 @@ export class PysakaLogger implements IPysakaLogger {
     this.loggerId = generateNumericId(10);
     const workerPath = path.join(process.cwd(), './src/worker.js');
 
-    this.logWorkerAC = new AbortController();
     this.logWorker = new Worker(workerPath, {
       name: this.loggerId,
       stdout: true,
       stdin: true,
+      stderr: false,
       workerData: {
         loggerId: this.loggerId,
         severity: this.severity,
@@ -112,26 +110,13 @@ export class PysakaLogger implements IPysakaLogger {
   }
 
   private initOutputStream() {
-    this.proxyOutputStreamAC = new AbortController();
     this.proxyOutputSteamBufferSize = 5e5; // 5 MB
     this.proxyOutputSteam = new PassThrough({
       highWaterMark: this.proxyOutputSteamBufferSize,
-      signal: this.proxyOutputStreamAC.signal,
     });
 
-    pipeline(this.logWorker.stdout, this.proxyOutputSteam, {
-      signal: this.logWorkerAC.signal,
-      end: false,
-    }).catch((err) => {
-      if (err) {
-        process.stderr.write(
-          `${LOGGER_PREFIX} Pipeline logWorker->proxyOutputSteam failed\n`,
-        );
-        process.stderr.write(`${LOGGER_PREFIX} ${err.message}\n`);
-      } else {
-        process.stdout.write('Pipeline succeeded.');
-      }
-    });
+    const s = pipeline(this.logWorker.stdout, this.proxyOutputSteam, () => {});
+    this.streamsToDestroy.push(s);
 
     this.pipeOutputToDestination();
 
@@ -140,19 +125,17 @@ export class PysakaLogger implements IPysakaLogger {
 
   private initFallbackStream() {
     this.fallbackStreamBufferSize = 5e5; // 500kb bcz RAM is cheap :)
-    this.fallbackStreamAC = new AbortController();
     this.fallbackStream = new PassThrough({
       highWaterMark: this.fallbackStreamBufferSize,
-      signal: this.fallbackStreamAC.signal,
     });
 
-    this.fallbackWStreamAC = new AbortController();
-    this.fallbackFilePath = `${process.cwd()}/__temp/pysaka_${Date.now()}.log`;
+    this.fallbackFilePath = `${process.cwd()}/__temp/pysaka_${
+      this.loggerId
+    }.log`;
     this.fallbackWStream = openFileInSyncWay(
       this.fallbackFilePath,
       this.serializerEncoding,
       this.fallbackStreamBufferSize,
-      this.fallbackWStreamAC.signal,
     );
     this.serializer = new LogSerializer(
       this.loggerId,
@@ -166,95 +149,80 @@ export class PysakaLogger implements IPysakaLogger {
     process.stdout.write(`${LOGGER_PREFIX} Logger's fallback stream is on\n`);
   }
 
-  private shutdown() {
-    process.stdout.write(`${LOGGER_PREFIX} Logger is shutting down...\n`);
-    this.destinationCheckId && clearTimeout(this.destinationCheckId);
-    this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
-
-    this.proxyOutputSteam.unpipe(this.destination);
-    this.logWorkerAC?.abort();
-    this.logWorker?.terminate();
-    this.proxyOutputStreamAC?.abort();
-
-    if (this.fallbackStreamAC) {
-      this.fallbackStreamAC.abort();
-      this.fallbackWStreamAC.abort();
-      unlinkSync(this.fallbackFilePath);
-    }
-  }
-
-  private isDestinationAvailable(): boolean {
-    this.destinationUnavailable =
-      !this.destination.writable || this.destination.writableNeedDrain;
-
-    if (this.destinationUnavailable) {
-      if (this.destination.writableNeedDrain) {
-        process.nextTick(() => this.destination.emit('drain'));
-      }
-      return false;
-    }
-    this.destinationUnavailable = true;
-    return true;
-  }
-
   private async pipeOutputToDestination() {
     this.destinationCheckId && clearTimeout(this.destinationCheckId);
-    try {
-      await pipeline(this.proxyOutputSteam, this.destination, {
-        signal: this.proxyOutputStreamAC.signal,
-        end: false,
-      });
-    } catch (err) {
-      process.stderr.write(
-        `${LOGGER_PREFIX} Pipeline proxyOutputSteam->destination failed\n`,
-      );
-      process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
+    this.proxyOutputSteam.unpipe(this.destination); // just in case
 
-      if (!this.isDestinationAvailable()) {
-        this.destinationUnavailable = true;
-        this.destinationCheckId = setTimeout(
-          () => this.pipeOutputToDestination(),
-          DEFAULT_STREAMS_RECOVERY_TIMEOUT,
-        );
-      }
-    }
+    this.proxyOutputSteam.once(
+      'error',
+      this.handleOutputStreamError.bind(this),
+    );
+    this.destination.once('error', this.handleOutputStreamError.bind(this));
+
+    const s = this.proxyOutputSteam.pipe(this.destination, { end: false });
+    this.streamsToDestroy.push(s);
   }
 
-  private async pipeFallbackStream() {
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    // const that = this;
-    this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
-    try {
-      await Promise.all([
-        pipeline(
-          this.fallbackStream,
-          // async function* incRestoreCounter(logs: AsyncIterable<Buffer>) {
-          //   for await (const log of logs) {
-          //     that.fallbackItemsCount++;
-          //     yield log;
-          //   }
-          // },
-          this.fallbackWStream,
-          {
-            signal: this.fallbackStreamAC.signal,
-            end: true,
-          },
-        ),
-        pipeline(this.fallbackStream, this.proxyOutputSteam, {
-          signal: this.fallbackStreamAC.signal,
-          end: true,
-        }),
-      ]);
-    } catch (err) {
-      process.stderr.write(`${LOGGER_PREFIX} Pipeline fallbackStream failed\n`);
-      process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
+  private handleOutputStreamError(err) {
+    if (this.isDestroyed) return;
 
-      this.fallbackSupportEnabled = false;
-      this.fallbackCheckId = setTimeout(
-        () => this.initFallbackStream(),
+    if (!this.destination.writableEnded) {
+      process.stderr.write(`${LOGGER_PREFIX} Destination is not writable\n}`);
+      this.gracefulShutdown();
+      return;
+    }
+
+    process.stderr.write(
+      `${LOGGER_PREFIX} Pipeline proxyOutputSteam->destination failed\n`,
+    );
+    process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
+
+    if (!this.isDestinationAvailable()) {
+      this.destinationUnavailable = true;
+      this.destinationCheckId = setTimeout(
+        () => this.pipeOutputToDestination(),
         DEFAULT_STREAMS_RECOVERY_TIMEOUT,
       );
     }
+  }
+
+  private pipeFallbackStream() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    // const that = this;
+    this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
+    const s1 = pipeline(
+      this.fallbackStream,
+      // async function* incRestoreCounter(logs: AsyncIterable<Buffer>) {
+      //   for await (const log of logs) {
+      //     that.fallbackItemsCount++;
+      //     yield log;
+      //   }
+      // },
+      this.fallbackWStream,
+      // () => {},
+      this.handleFallbackStreamError.bind(this),
+    );
+    const s2 = pipeline(
+      this.fallbackStream,
+      this.proxyOutputSteam,
+      // () => {},
+      this.handleFallbackStreamError.bind(this),
+    );
+
+    this.streamsToDestroy.push(s1, s2);
+  }
+
+  private handleFallbackStreamError(err) {
+    if (this.isDestroyed) return;
+
+    process.stderr.write(`${LOGGER_PREFIX} Pipeline fallbackStream failed\n`);
+    process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
+
+    this.fallbackSupportEnabled = false;
+    this.fallbackCheckId = setTimeout(
+      () => this.initFallbackStream(),
+      DEFAULT_STREAMS_RECOVERY_TIMEOUT,
+    );
   }
 
   public log(...args: any[]): this {
@@ -276,6 +244,20 @@ export class PysakaLogger implements IPysakaLogger {
     return this.write(SeverityLevelEnum.CRITICAL, ...args);
   }
 
+  private isDestinationAvailable(): boolean {
+    this.destinationUnavailable =
+      !this.destination.writable || this.destination.writableNeedDrain;
+
+    if (this.destinationUnavailable) {
+      if (this.destination.writableNeedDrain) {
+        process.nextTick(() => this.destination.emit('drain'));
+      }
+      return false;
+    }
+    this.destinationUnavailable = true;
+    return true;
+  }
+
   private write(logLevel: SeverityLevelEnum, ...args: any[]): this {
     if (logLevel < this.severity) {
       return this;
@@ -290,29 +272,6 @@ export class PysakaLogger implements IPysakaLogger {
 
     return this;
   }
-
-  // private __write(content: Buffer): Promise<void> {
-  //   if (!this.isDestinationAvailable()) {
-  //     this.fallbackSupportEnabled && this.fallbackWrite(content);
-  //     return;
-  //   }
-
-  //   this.proxyOutputSteam.write(
-  //     content + '\n',
-  //     this.serializerEncoding,
-  //     (err) =>
-  //       err && this.fallbackSupportEnabled && this.fallbackWrite(content),
-  //   );
-
-  //   if (this.proxyOutputSteam.writableNeedDrain) {
-  //     this.proxyOutputSteam.emit('drain');
-  //   }
-  //   // TODO: reason about shrinking the fallback file
-  //   // if (this.fallbackItemsCount) {
-  //   //   setTimeout(() => truncateFile(this.fallbackFilePath), 10);
-  //   //   this.fallbackItemsCount = 0;
-  //   // }
-  // }
 
   private fallbackWrite(args: any[]): void {
     const content: Buffer = this.serializer.serializeJSON(args);
@@ -336,6 +295,51 @@ export class PysakaLogger implements IPysakaLogger {
     );
   }
 
+  private destructor() {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+
+    this.destinationCheckId && clearTimeout(this.destinationCheckId);
+    this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
+
+    // do all possible unpipes
+    this.logWorker.stdout.unpipe();
+    this.proxyOutputSteam.unpipe();
+    this.proxyOutputSteam.unpipe(this.destination);
+    if (this.fallbackStream) {
+      this.fallbackStream.unpipe();
+    }
+    // pipe results as streams to be cleaned
+    this.streamsToDestroy?.forEach((s) => {
+      s.removeAllListeners();
+      s.destroyed || s.destroy();
+    });
+
+    if (this.logWorker) {
+      this.logWorker.unref();
+      this.logWorker.removeAllListeners();
+      this.logWorker.terminate();
+    }
+
+    this.proxyOutputSteam.end();
+    this.proxyOutputSteam.removeAllListeners();
+    this.proxyOutputSteam.destroy();
+
+    if (this.fallbackStream) {
+      this.fallbackWStream.emit('finish');
+      this.fallbackStream.end();
+      this.fallbackStream.removeAllListeners();
+      this.fallbackWStream.destroy();
+      this.fallbackStream.destroy();
+      unlinkSync(this.fallbackFilePath);
+    }
+
+    process.stdout.write(
+      `${LOGGER_PREFIX} Destination is writableEnded ${this.destination.writableEnded} [false is good]\n`,
+    );
+    process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
+  }
+
   public async gracefulShutdown() {
     this.destinationCheckId && clearTimeout(this.destinationCheckId);
     this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
@@ -344,12 +348,15 @@ export class PysakaLogger implements IPysakaLogger {
 
     await Promise.race([
       finished(this.logWorker.stdout),
-      new Promise((resolve) => setTimeout(resolve, 1000)),
+      new Promise((resolve) => setTimeout(resolve, 500)),
     ]);
-    if (!this.logWorker.stdout.readableEnded) {
-      this.logWorker.stdin.emit('finish');
-      this.logWorker.stdout.emit('end');
-    }
+
+    this.logWorker.stdout.unpipe(this.proxyOutputSteam);
+    this.streamsToDestroy?.forEach((s) => {
+      s.removeAllListeners();
+    });
+    this.logWorker.stdin.emit('finish');
+    this.logWorker.stdout.emit('end');
 
     if (this.proxyOutputSteam.writableNeedDrain) {
       await once(this.proxyOutputSteam, 'drain');
@@ -360,9 +367,14 @@ export class PysakaLogger implements IPysakaLogger {
 
     await finished(this.proxyOutputSteam);
 
-    this.shutdown();
+    this.destructor();
+  }
 
-    process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
-    // process.exit(0);
+  public closeSync() {
+    this.destructor();
+  }
+
+  public async close() {
+    await this.gracefulShutdown();
   }
 }
