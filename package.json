@@ -9,7 +9,7 @@
     "test": "npm run build && node --test ./dist/tests/index.js",
     "lint": "eslint --ext .ts ./src",
     "format": "prettier --write \"src/**/*.ts\"",
-    "build": "tsc",
+    "build": "tsc -p .",
     "start": "node ./dist/logger.js",
     "dev": "ts-node ./src",
     "install": "npm run build"
