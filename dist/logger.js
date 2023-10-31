@@ -191,20 +191,20 @@ class PysakaLogger {
             this.fallbackWrite(args);
             return;
         }
-        const serializableArr = [];
-        serializableArr.push(logLevel);
+        const serializableArgs = [];
+        serializableArgs.push(logLevel);
         for (const item of args) {
             if (item instanceof Error) {
-                serializableArr.push({
+                serializableArgs.push({
                     message: item.message,
                     stack: item.stack,
                     cause: item.cause,
                 });
                 continue;
             }
-            serializableArr.push(item);
+            serializableArgs.push(item);
         }
-        this.logWorker.postMessage(serializableArr);
+        this.logWorker.postMessage(serializableArgs);
         return this;
     }
     fallbackWrite(args) {
@@ -286,6 +286,9 @@ class PysakaLogger {
     }
     async close() {
         await this.gracefulShutdown();
+    }
+    child() {
+        return this;
     }
 }
 exports.PysakaLogger = PysakaLogger;

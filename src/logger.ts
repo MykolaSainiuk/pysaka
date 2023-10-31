@@ -410,6 +410,10 @@ export class PysakaLogger implements IPysakaLogger {
   public async close() {
     await this.gracefulShutdown();
   }
+
+  public child() {
+    return this;
+  }
 }
 
 export default PysakaLogger;

@@ -45,5 +45,6 @@ export declare class PysakaLogger implements IPysakaLogger {
     gracefulShutdown(): Promise<void>;
     closeSync(): void;
     close(): Promise<void>;
+    child(): this;
 }
 export default PysakaLogger;
