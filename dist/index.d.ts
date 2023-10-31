@@ -1,3 +1,3 @@
 export * from './logger';
-export * from './types';
+export type * from './types.d';
 export * from './enums';

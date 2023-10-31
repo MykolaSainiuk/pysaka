@@ -29,8 +29,19 @@ In order to find out what does the logger support you are welcome to import its 
     // or sync way
     logger.closeSync();
 
-## Features
+## Key method logger.write()
 
+    logger<write>('Hello world!');
+or
+
+    logger<write>('Hello world!', 'info');
+or
+
+    logger<write>('Hello world!', 'info', { some: 'data' });
+
+you are not obliged to specify the first argument as string however it's advised to do.
+
+## Features
 
 
 Voilà !
