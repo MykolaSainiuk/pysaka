@@ -284,8 +284,21 @@ export class PysakaLogger implements IPysakaLogger {
       return;
     }
 
-    args.unshift(logLevel);
-    this.logWorker.postMessage(args);
+    const serializableArgs = [];
+    serializableArgs.push(logLevel);
+    for (const item of args) {
+      // dunno why but Error isn't transferable by default via HTML structured clone algorithm
+      if (item instanceof Error) {
+        serializableArgs.push({
+          message: item.message,
+          stack: item.stack,
+          cause: item.cause,
+        });
+        continue;
+      }
+      serializableArgs.push(item);
+    }
+    this.logWorker.postMessage(serializableArgs);
 
     return this;
   }

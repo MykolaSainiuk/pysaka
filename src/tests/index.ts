@@ -31,7 +31,7 @@ test('Log smth more (JSON)', async (t) => {
   });
   await logger.close();
 });
-test.only('Log smth more (TEXT)', async (t) => {
+test('Log smth more (TEXT)', async (t) => {
   const logger = new PysakaLogger({
     format: 'text' as any,
     fallbackSupport: false,
@@ -47,6 +47,16 @@ test.only('Log smth more (TEXT)', async (t) => {
     message: 'this is error message',
     stack: {},
   });
+  await logger.close();
+});
+test.only('Log some err (TEXT)', async (t) => {
+  const logger = new PysakaLogger({
+    format: 'text' as any,
+    fallbackSupport: false,
+  });
+  logger.log('>--------------------');
+  logger.error('shit happened', new Error('indeed happen'));
+  logger.log('<--------------------');
   await logger.close();
 });
 
