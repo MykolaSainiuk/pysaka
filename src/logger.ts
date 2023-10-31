@@ -256,8 +256,8 @@ export class PysakaLogger implements IPysakaLogger {
   public debug(...args: any[]): this {
     return this.write(SeverityLevelEnum.DEBUG, ...args);
   }
-  public critical(...args: any[]): this {
-    return this.write(SeverityLevelEnum.CRITICAL, ...args);
+  public fatal(...args: any[]): this {
+    return this.write(SeverityLevelEnum.FATAl, ...args);
   }
 
   private isDestinationAvailable(): boolean {

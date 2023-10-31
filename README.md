@@ -1,5 +1,5 @@
 # What again?
-Another? logger to offload the main thread of the main process to not affect performance.
+A logger to offload the main thread of the main process to not affect performance.
 
 ## Description
 
@@ -7,9 +7,10 @@ This logger is about logging your messages using streams via a separate Worker i
 
 ### Features
 
- new PysakaLogger();
+to create an instance of the logger:
+`new PysakaLogger();`
 
-accepts such object as params
+the constructor accepts such object as a param
 
     export type PysakaLoggerParams = {
         destination?: DestinationType;
@@ -23,12 +24,18 @@ accepts such object as params
     };
 
 destination - must be Writable stream! Mostly I expect it's process.stdout, or file descriptor with write access.
+
 fallbackSupport - flag which identifies do we support handling of "logs" logs in case if destination is not available temporarily.
+
 severity - aka log level: 0 - debug, 1 - info, 2 - warn, 3 - error, 4 - fatal
+
 format - two options: "json" or "text"
+
 prefix - prefix for each log message. optional
+
 name - name of the logger. optional
 debugLogs - flag which identifies do we need to log debug logs. optional
+
 tempDirPath - path to the temporary directory where logs will be stored in case if destination is not available temporarily. optional
 
 # How to install?
@@ -37,7 +44,7 @@ tempDirPath - path to the temporary directory where logs will be stored in case 
 
 ## How to use?
 
-*"Default" code example*:
+*"Usual" code example*:
 
     import PysakaLogger from 'pysaka';
 
@@ -62,5 +69,14 @@ or
     logger<write>('Hello world!', 'info', { some: 'data' });
 
 you are not obliged to specify the first argument as string however it's advised to do.
+
+where <write> is any of the following methods:
+
+    logger.debug('Hello world!');
+    logger.info('Hello world!');
+    logger.log('Hello world!');
+    logger.warn('Hello world!');
+    logger.error('Hello world!');
+    logger.fatal('Hello world!'); 
 
 Voilà !

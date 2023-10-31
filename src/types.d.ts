@@ -21,7 +21,7 @@ export interface IPysakaLogger {
   warn(...args: any[]): this;
   error(...args: any[]): this;
   debug(...args: any[]): this;
-  critical(...args: any[]): this;
+  fatal(...args: any[]): this;
   closeSync(): void;
   close(): Promise<void>;
 }
