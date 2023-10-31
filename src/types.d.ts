@@ -11,6 +11,8 @@ export type PysakaLoggerParams = {
   format?: PrintFormatEnum;
   prefix?: string;
   name?: string;
+  debugLogs?: boolean;
+  tempDirPath?: string;
 };
 
 export interface IPysakaLogger {

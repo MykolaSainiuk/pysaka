@@ -1,5 +1,5 @@
 ## What again?
-Another logger to offload the main thread of the main process to not affect the performance.
+Another logger to offload the main thread of the main process to not affect the performance of the main process & main thread
 
 ## How to install?
 
@@ -14,9 +14,9 @@ Another logger to offload the main thread of the main process to not affect the 
     // do your stuff
 
     // in the end, please, close it
+    // otherwise it will prevent the main process to be closed
     logger.close();
     // or sync way
     logger.closeSync();
-
 
 Voilà !

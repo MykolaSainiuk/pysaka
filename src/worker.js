@@ -13,26 +13,25 @@ const logSerializer = new LogSerializer(
   workerData.encoding,
   workerData.format,
 );
+const format = logSerializer.getFormat();
 
-parentPort.on('message', (args) => {
-  if (args === '__DONE') {
+parentPort.on('message', ([logLevel, ...args]) => {
+  if (args?.[0] === '__DONE') {
     // TODO: surround with Atomics
-    workerData.timeToBuy = true;
+    workerData.done = true;
     return;
   }
 
   // serialization here so no extra CPU consumption in the main thread
   const bufferContent =
-    logSerializer.getFormat() === 'text'
-      ? logSerializer.serializeText(args)
+    format === 'text'
+      ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
       : logSerializer.serializeJSON(args);
 
-  // TODO: pass FD and pipe it directly?
-  // pipe it to the destination stream
   process.stdout.write(bufferContent);
 
   // in case of long operation
-  if (workerData.timeToBuy) {
+  if (workerData.done) {
     process.stdout.emit('finish');
     process.stdout.end();
     // parentPort.close();

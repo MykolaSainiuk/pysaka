@@ -23,7 +23,6 @@
       "error",
       { "vars": "all", "args": "none", "ignoreRestSiblings": false }
     ],
-    "no-empty-function": "warn",
     "@typescript-eslint/no-empty-function": "warn",
     "no-console": "error",
     "no-param-reassign": "warn",

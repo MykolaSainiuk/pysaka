@@ -31,16 +31,22 @@ test('Log smth more (JSON)', async (t) => {
   });
   await logger.close();
 });
-test('Log smth more (TEXT)', async (t) => {
+test.only('Log smth more (TEXT)', async (t) => {
   const logger = new PysakaLogger({
     format: 'text' as any,
     fallbackSupport: false,
+    severity: 'debug' as any,
   });
+  logger.warn('>--------------------');
   logger.log('some text', 'Hello, world!', {
     foo: 'bar',
     'some extra': { a: false, b: [1, 2] },
   });
-  logger.log('<--------------------');
+  logger.warn('<--------------------');
+  logger.error('shit happened', {
+    message: 'this is error message',
+    stack: {},
+  });
   await logger.close();
 });
 

@@ -9,6 +9,15 @@ const SeverityLevelValueToKey = {
   4: 'CRITICAL',
 };
 
+const TEXT_COLORS = {
+  DEFAULT_COLOR: '\x1b[0m',
+  CYAN: '\x1b[36m',
+  YELLOW: '\x1b[33m',
+  GREEN: '\x1b[32m',
+  RED: '\x1b[31m',
+  PURPLE: '\x1b[35m',
+};
+
 class LogSerializer extends EventEmitter {
   constructor(loggerId, severity, encoding = 'utf-8', format = 'json') {
     super();
@@ -31,14 +40,28 @@ class LogSerializer extends EventEmitter {
     );
   }
 
-  serializeText(args) {
-    const logObj = this.getLogItem(args);
+  serializeText(args, logLevel) {
+    const logObj = this.getLogItem(args, logLevel);
+    const cReset = TEXT_COLORS.DEFAULT_COLOR;
+    const time = this.getLocaleTimestamp(logObj.time);
+    const parts = time.split(' ');
+    let timeStr = time;
+    if (parts.length >= 3) {
+      timeStr = `${parts[0]} ${TEXT_COLORS.PURPLE}${parts[1]}${cReset} ${parts[2]}`;
+    } else {
+      timeStr = `${parts[0]} ${TEXT_COLORS.PURPLE}${parts[1]}${cReset}`;
+    }
+    const ll = logLevel ?? this.severity;
+    const llc =
+      logLevel >= 3
+        ? TEXT_COLORS.RED
+        : ll === 2
+        ? TEXT_COLORS.YELLOW
+        : TEXT_COLORS.GREEN;
 
-    let str = `[${this.getLocaleTimestamp(logObj.time)}] ${logObj.level} (${
-      logObj.pid
-    })`;
+    let str = `[${timeStr}] ${llc}${logObj.level}${cReset} (${logObj.pid})`;
     if (logObj.msg) {
-      str += ` "${logObj.msg}"`;
+      str += ` ${TEXT_COLORS.CYAN}"${logObj.msg}"${cReset}`;
     }
     if (logObj.data || logObj.errors) {
       str += ` ${JSON.stringify(
@@ -51,10 +74,11 @@ class LogSerializer extends EventEmitter {
     return Buffer.from(str + '\n', this.encoding);
   }
 
-  getLogItem([msg, ...rest]) {
+  getLogItem([msg, ...rest], logLevel) {
     const logObj = {
       time: Date.now(),
-      level: SeverityLevelValueToKey[this.severity] ?? this.severity,
+      level:
+        SeverityLevelValueToKey[logLevel ?? this.severity] ?? this.severity,
       pid: process.pid,
     };
     if (typeof msg === 'string' || msg instanceof String) {

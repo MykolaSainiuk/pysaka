@@ -45,6 +45,9 @@ export class PysakaLogger implements IPysakaLogger {
 
   private streamsToDestroy = [];
   private isDestroyed: boolean = false;
+  private debugLogs: boolean = false;
+  private tempDirPath: string;
+
   private static __singleInstance: Record<string, PysakaLogger> = {};
 
   constructor(__params?: PysakaLoggerParams) {
@@ -56,28 +59,34 @@ export class PysakaLogger implements IPysakaLogger {
     PysakaLogger.__singleInstance[paramsStringified] = this;
 
     const params = { ...DEFAULT_LOGGER_PARAMS, ...__params };
+
     this.destination = params.destination;
     // TODO: surround with atomics
     this.destinationUnavailable = !this.destination.writable;
     if (this.destinationUnavailable) {
       throw new Error(`${LOGGER_PREFIX} Destination is not writable`);
     }
+    if (params.tempDirPath && params.tempDirPath.includes('/')) {
+      throw new Error(
+        `${LOGGER_PREFIX} tempDirPath should be a relative path without slashes`,
+      );
+    }
 
     this.fallbackSupportEnabled = params.fallbackSupport;
     this.severity = params.severity;
     this.format = params.format;
+    this.debugLogs = params.debugLogs ?? false;
+    this.tempDirPath = params.tempDirPath ?? '__temp';
 
     try {
       this.init();
     } catch (err) {
       process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
       this.destructor();
-      throw new Error(
-        `${LOGGER_PREFIX} Failed to initialize logger. Pardon me`,
-      );
+      throw new Error(`${LOGGER_PREFIX} Failed to initialize logger`);
     }
 
-    process.once('exit', this.destructor.bind(this));
+    process.once('exit', this.gracefulShutdown.bind(this));
   }
 
   private init() {
@@ -85,7 +94,8 @@ export class PysakaLogger implements IPysakaLogger {
     this.initOutputStream();
     this.fallbackSupportEnabled && this.initFallbackStream();
 
-    process.stdout.write(`${LOGGER_PREFIX} Logger is initialized\n`);
+    this.debugLogs &&
+      process.stdout.write(`${LOGGER_PREFIX} Logger is initialized\n`);
   }
 
   private initWorker() {
@@ -106,7 +116,8 @@ export class PysakaLogger implements IPysakaLogger {
     });
     this.logWorker.unref();
 
-    process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
+    this.debugLogs &&
+      process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
   }
 
   private initOutputStream() {
@@ -115,12 +126,16 @@ export class PysakaLogger implements IPysakaLogger {
       highWaterMark: this.proxyOutputSteamBufferSize,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const s = pipeline(this.logWorker.stdout, this.proxyOutputSteam, () => {});
     this.streamsToDestroy.push(s);
 
     this.pipeOutputToDestination();
 
-    process.stdout.write(`${LOGGER_PREFIX} Logger's output stream is piped\n`);
+    this.debugLogs &&
+      process.stdout.write(
+        `${LOGGER_PREFIX} Logger's output stream is piped\n`,
+      );
   }
 
   private initFallbackStream() {
@@ -129,7 +144,7 @@ export class PysakaLogger implements IPysakaLogger {
       highWaterMark: this.fallbackStreamBufferSize,
     });
 
-    this.fallbackFilePath = `${process.cwd()}/__temp/pysaka_${
+    this.fallbackFilePath = `${process.cwd()}/${this.tempDirPath}/pysaka_${
       this.loggerId
     }.log`;
     this.fallbackWStream = openFileInSyncWay(
@@ -146,7 +161,8 @@ export class PysakaLogger implements IPysakaLogger {
 
     this.pipeFallbackStream();
 
-    process.stdout.write(`${LOGGER_PREFIX} Logger's fallback stream is on\n`);
+    this.debugLogs &&
+      process.stdout.write(`${LOGGER_PREFIX} Logger's fallback stream is on\n`);
   }
 
   private async pipeOutputToDestination() {
@@ -268,6 +284,7 @@ export class PysakaLogger implements IPysakaLogger {
       return;
     }
 
+    args.unshift(logLevel);
     this.logWorker.postMessage(args);
 
     return this;
@@ -334,17 +351,20 @@ export class PysakaLogger implements IPysakaLogger {
       unlinkSync(this.fallbackFilePath);
     }
 
-    process.stdout.write(
-      `${LOGGER_PREFIX} Destination is writableEnded ${this.destination.writableEnded} [false is good]\n`,
-    );
-    process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
+    // process.stdout.write(
+    //   `${LOGGER_PREFIX} Destination is writableEnded ${this.destination.writableEnded} [false is good]\n`,
+    // );
+    this.debugLogs &&
+      process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
   }
 
   public async gracefulShutdown() {
+    if (this.isDestroyed) return;
+
     this.destinationCheckId && clearTimeout(this.destinationCheckId);
     this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
 
-    this.logWorker.postMessage('__DONE');
+    this.logWorker.postMessage([0, '__DONE']);
 
     await Promise.race([
       finished(this.logWorker.stdout),

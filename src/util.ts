@@ -9,6 +9,8 @@ import {
 } from 'node:fs';
 import { FileHandle, access, open } from 'node:fs/promises';
 
+import { LOGGER_PREFIX } from './consts';
+
 export const openFileInSyncWay = (
   filePath: string,
   encoding: BufferEncoding,
@@ -43,7 +45,9 @@ export const openFileSafelyAsStream = async (
   try {
     fd = await open(filePath, 'w');
   } catch (err) {
-    process.stderr.write(`Pysaka: Failed to create file: ${err.message}\n`);
+    process.stderr.write(
+      `${LOGGER_PREFIX} Failed to create file: ${err.message}\n`,
+    );
     throw err;
   } finally {
     await fd?.close();
@@ -51,7 +55,9 @@ export const openFileSafelyAsStream = async (
   try {
     await access(filePath, constants.W_OK);
   } catch (err) {
-    process.stderr.write(`Pysaka: Failed to open file: ${err.message}\n`);
+    process.stderr.write(
+      `${LOGGER_PREFIX} Failed to open file: ${err.message}\n`,
+    );
     throw err;
   }
 
@@ -75,7 +81,9 @@ export const truncateFile = async (filePath: string): Promise<void> => {
     fd = await open(filePath, 'w');
     await fd.truncate();
   } catch (err) {
-    process.stderr.write(`Pysaka: Failed to truncate file: ${err.message}\n`);
+    process.stderr.write(
+      `${LOGGER_PREFIX} Failed to truncate file: ${err.message}\n`,
+    );
     throw err;
   } finally {
     await fd?.close();
@@ -87,7 +95,9 @@ function createEmptyFile(filePath: string) {
   try {
     fd = openSync(filePath, 'w');
   } catch (err) {
-    process.stderr.write(`Pysaka: Failed to create file: ${err.message}\n`);
+    process.stderr.write(
+      `${LOGGER_PREFIX} Failed to create file: ${err.message}\n`,
+    );
     throw err;
   } finally {
     fd && closeSync(fd);
@@ -98,7 +108,9 @@ function createEmptyDir(dirPath: string) {
   try {
     mkdirSync(dirPath);
   } catch (err) {
-    process.stderr.write(`Pysaka: Failed to create dir: ${err.message}\n`);
+    process.stderr.write(
+      `${LOGGER_PREFIX} Failed to create dir: ${err.message}\n`,
+    );
     throw err;
   }
 }
