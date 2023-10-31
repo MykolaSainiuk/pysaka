@@ -100,7 +100,7 @@ export class PysakaLogger implements IPysakaLogger {
 
   private initWorker() {
     this.loggerId = generateNumericId(10);
-    const workerPath = path.join(process.cwd(), './src/worker.js');
+    const workerPath = path.join(__dirname, './worker.js');
 
     this.logWorker = new Worker(workerPath, {
       name: this.loggerId,
