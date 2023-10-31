@@ -411,6 +411,7 @@ export class PysakaLogger implements IPysakaLogger {
     await this.gracefulShutdown();
   }
 
+  // TODO: implement
   public child() {
     return this;
   }
