@@ -1,3 +1,7 @@
+export {
+  PrintFormatEnum,
+  SeverityLevelEnum,
+  SeverityLevelValueToKey,
+} from './enums';
 export * from './logger';
-export type * from './types.d';
-export * from './enums';
+export type { IPysakaLogger, LogItem } from './types.d';

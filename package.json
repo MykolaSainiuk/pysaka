@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Async threaded logger",
   "main": "dist/index.js",
-  "types": "dist/types.d.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
     "test:only": "npm run build && node --test-only ./dist/tests/index.js",
     "test": "npm run build && node --test ./dist/tests/index.js",
