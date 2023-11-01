@@ -9,7 +9,6 @@ export type PysakaLoggerParams = {
   fallbackSupport?: boolean;
   severity?: SeverityLevelEnum;
   format?: PrintFormatEnum;
-  prefix?: string;
   name?: string;
   debugLogs?: boolean;
   tempDirPath?: string;

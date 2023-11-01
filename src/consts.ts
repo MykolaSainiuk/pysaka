@@ -3,7 +3,7 @@ import type { PysakaLoggerParams } from './types.d';
 
 export const DEFAULT_LOGGER_PARAMS: PysakaLoggerParams = {
   destination: process.stdout,
-  fallbackSupport: true,
+  fallbackSupport: false,
   severity: SeverityLevelEnum.INFO,
   format: PrintFormatEnum.JSON,
   debugLogs: false,
