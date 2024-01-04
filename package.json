@@ -1,6 +1,6 @@
 {
   "name": "pysaka",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Async threaded logger",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,8 +18,10 @@
     "logger",
     "async",
     "logger",
-    "threads"
+    "threads",
+    "pysaka"
   ],
+  "homepage": "https://github.com/MykolaSainiuk/pysaka/blob/master/README.md",
   "author": "Mykola Sainiuk",
   "license": "ISC",
   "devDependencies": {
