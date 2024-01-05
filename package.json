@@ -2,16 +2,17 @@
   "name": "pysaka",
   "version": "1.0.4",
   "description": "Async threaded logger",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
   "scripts": {
+    "prebuild": "rimraf ./dist/*.js && rimraf ./dist/tests/*.js",
     "test:only": "npm run build && node --test-only ./dist/tests/index.js",
     "test": "npm run build && node --test ./dist/tests/index.js",
     "lint": "eslint --ext .ts ./src",
     "format": "prettier --write \"src/**/*.ts\"",
-    "build": "npx tsc -p .",
+    "build": "tsc -p ./tsconfig.json",
     "start": "node ./dist/index.js",
-    "dev": "ts-node ./src"
+    "dev": "ts-node ./src",
+    "prepublish": "npm run build"
   },
   "keywords": [
     "nodejs",
