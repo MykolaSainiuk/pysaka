@@ -74,7 +74,7 @@ tempDirPath - a path to the temporary dir where logs will be stored if the desti
 
     // in the end, please, close it
     // otherwise it will prevent the main process to be closed
-    logger.close();
+    await logger.close();
     // or sync way
     logger.closeSync();
 
