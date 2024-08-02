@@ -7,6 +7,11 @@ const node_assert_1 = __importDefault(require("node:assert"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_test_1 = require("node:test");
 const logger_1 = require("../logger");
+(0, node_test_1.afterEach)((ctx, done) => {
+    setTimeout(() => {
+        done();
+    }, 1);
+});
 (0, node_test_1.test)('PysakaLogger', (t) => {
     const logger = new logger_1.PysakaLogger();
     node_assert_1.default.ok(logger);
@@ -49,7 +54,7 @@ node_test_1.test.skip('test to caboom!', (t) => {
     });
     await logger.close();
 });
-node_test_1.test.only('Log some err (TEXT)', async (t) => {
+(0, node_test_1.test)('Log some err (TEXT)', async (t) => {
     const logger = new logger_1.PysakaLogger({
         format: 'text',
         fallbackSupport: false,
@@ -59,13 +64,17 @@ node_test_1.test.only('Log some err (TEXT)', async (t) => {
     logger.log('<--------------------');
     await logger.close();
 });
-(0, node_test_1.test)('Log smth more with fallback support', async (t) => {
-    const logger = new logger_1.PysakaLogger();
+node_test_1.test.only('Log smth more with fallback support', async (t) => {
+    const logger = new logger_1.PysakaLogger({
+        fallbackSupport: true,
+    });
     logger.log('some log info', 'Hello, world!');
     await logger.close();
 });
 (0, node_test_1.test)('Log to fallback stream: no logs lost', async (t) => {
-    const logger = new logger_1.PysakaLogger();
+    const logger = new logger_1.PysakaLogger({
+        fallbackSupport: true,
+    });
     logger.log('-------------------->');
     let i = 0;
     await new Promise((resolve) => {

@@ -15,7 +15,7 @@ parentPort.on('message', ([logLevel, ...args]) => {
     const bufferContent = format === 'text'
         ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
         : logSerializer.serializeJSON(args);
-    process.stdout.write(bufferContent);
+    process.stdout.writable && process.stdout.write(bufferContent);
     if (workerData.done) {
         process.stdout.emit('finish');
         process.stdout.end();

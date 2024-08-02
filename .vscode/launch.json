@@ -7,11 +7,11 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "dump test",
+            "name": "test built js",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/src/tests/debug_test.ts",
+            "program": "${workspaceFolder}/dist/tests/debug_test.js",
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
@@ -29,11 +29,16 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/src/index.ts",
+            "program": "pa${workspaceFolder}/src/index.ts",
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
-            ]
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "restart": true,
+            "showAsyncStacks": true,
+            "sourceMaps": true,
         }
     ]
 }

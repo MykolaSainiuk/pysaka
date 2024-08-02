@@ -7,8 +7,9 @@ exports.DEFAULT_LOGGER_PARAMS = {
     fallbackSupport: false,
     severity: enums_1.SeverityLevelEnum.INFO,
     format: enums_1.PrintFormatEnum.JSON,
-    debugLogs: false,
+    debugLogsOfLogger: false,
     tempDirPath: '__temp',
+    neverSpikeCPU: true,
 };
 exports.DEFAULT_STREAMS_RECOVERY_TIMEOUT = 1000;
 exports.LOGGER_PREFIX = '[Pysaka]';

@@ -18,6 +18,8 @@ import type {
 } from './types';
 import { generateNumericId, openFileInSyncWay } from './util';
 
+// __DONE is customer this logger-specific termination signal
+
 // EventEmitter.defaultMaxListeners = 100;
 export class PysakaLogger implements IPysakaLogger {
   private destination: DestinationType;
@@ -45,8 +47,9 @@ export class PysakaLogger implements IPysakaLogger {
 
   private streamsToDestroy = [];
   private isDestroyed: boolean = false;
-  private debugLogs: boolean = false;
+  private debugLogsOfLogger: boolean = false;
   private tempDirPath: string;
+  private neverSpikeCPU: boolean = true;
 
   private static __singleInstance: Record<string, PysakaLogger> = {};
 
@@ -75,8 +78,9 @@ export class PysakaLogger implements IPysakaLogger {
     this.fallbackSupportEnabled = params.fallbackSupport;
     this.severity = params.severity;
     this.format = params.format;
-    this.debugLogs = params.debugLogs ?? false;
+    this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
     this.tempDirPath = params.tempDirPath ?? '__temp';
+    this.neverSpikeCPU = params.neverSpikeCPU ?? false;
 
     try {
       this.init();
@@ -92,9 +96,10 @@ export class PysakaLogger implements IPysakaLogger {
   private init() {
     this.initWorker();
     this.initOutputStream();
+    // TODO: test it thoroughly
     this.fallbackSupportEnabled && this.initFallbackStream();
 
-    this.debugLogs &&
+    this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger is initialized\n`);
   }
 
@@ -116,7 +121,7 @@ export class PysakaLogger implements IPysakaLogger {
     });
     this.logWorker.unref();
 
-    this.debugLogs &&
+    this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
   }
 
@@ -132,7 +137,7 @@ export class PysakaLogger implements IPysakaLogger {
 
     this.pipeOutputToDestination();
 
-    this.debugLogs &&
+    this.debugLogsOfLogger &&
       process.stdout.write(
         `${LOGGER_PREFIX} Logger's output stream is piped\n`,
       );
@@ -161,7 +166,7 @@ export class PysakaLogger implements IPysakaLogger {
 
     this.pipeFallbackStream();
 
-    this.debugLogs &&
+    this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger's fallback stream is on\n`);
   }
 
@@ -286,6 +291,7 @@ export class PysakaLogger implements IPysakaLogger {
 
     const serializableArgs = [];
     serializableArgs.push(logLevel);
+
     for (const item of args) {
       // dunno why but Error isn't transferable by default via HTML structured clone algorithm
       if (item instanceof Error) {
@@ -298,7 +304,14 @@ export class PysakaLogger implements IPysakaLogger {
       }
       serializableArgs.push(item);
     }
-    this.logWorker.postMessage(serializableArgs);
+
+    if (this.neverSpikeCPU) {
+      setImmediate(
+        this.logWorker.postMessage.bind(this.logWorker, serializableArgs),
+      );
+    } else {
+      this.logWorker.postMessage(serializableArgs);
+    }
 
     return this;
   }
@@ -335,7 +348,6 @@ export class PysakaLogger implements IPysakaLogger {
     // do all possible unpipes
     this.logWorker.stdout.unpipe();
     this.proxyOutputSteam.unpipe();
-    this.proxyOutputSteam.unpipe(this.destination);
     if (this.fallbackStream) {
       this.fallbackStream.unpipe();
     }
@@ -367,7 +379,7 @@ export class PysakaLogger implements IPysakaLogger {
     // process.stdout.write(
     //   `${LOGGER_PREFIX} Destination is writableEnded ${this.destination.writableEnded} [false is good]\n`,
     // );
-    this.debugLogs &&
+    this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
   }
 
@@ -379,12 +391,14 @@ export class PysakaLogger implements IPysakaLogger {
 
     this.logWorker.postMessage([0, '__DONE']);
 
+    this.logWorker.stdout.unpipe(this.proxyOutputSteam);
+    // this.proxyOutputSteam.unpipe(this.destination);
+
     await Promise.race([
       finished(this.logWorker.stdout),
       new Promise((resolve) => setTimeout(resolve, 500)),
     ]);
 
-    this.logWorker.stdout.unpipe(this.proxyOutputSteam);
     this.streamsToDestroy?.forEach((s) => {
       s.removeAllListeners();
     });

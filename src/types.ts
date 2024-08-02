@@ -10,8 +10,9 @@ export type PysakaLoggerParams = {
   severity?: SeverityLevelEnum;
   format?: PrintFormatEnum;
   name?: string;
-  debugLogs?: boolean;
+  debugLogsOfLogger?: boolean;
   tempDirPath?: string;
+  neverSpikeCPU?: boolean;
 };
 
 export interface IPysakaLogger {

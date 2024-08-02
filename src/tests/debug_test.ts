@@ -16,7 +16,12 @@ logger.log('some text', 'Hello, world!', {
 
 logger.log('<--------------------');
 
-logger.close();
+// eslint-disable-next-line prefer-const
+let intervalId: any;
+
+logger.close().finally(() => clearInterval(intervalId));
+
+intervalId = setInterval(() => {}, 1 << 30);
 
 // let i = 0;
 

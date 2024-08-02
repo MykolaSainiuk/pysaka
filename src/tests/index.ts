@@ -1,8 +1,15 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
-import { test } from 'node:test';
+import { afterEach, test } from 'node:test';
 
 import { PysakaLogger } from '../logger';
+
+// Sorry world, it's damn Node.js test runner
+afterEach((ctx, done) => {
+  setTimeout(() => {
+    done();
+  }, 1);
+});
 
 test('PysakaLogger', (t) => {
   const logger = new PysakaLogger();
@@ -49,7 +56,7 @@ test('Log smth more (TEXT)', async (t) => {
   });
   await logger.close();
 });
-test.only('Log some err (TEXT)', async (t) => {
+test('Log some err (TEXT)', async (t) => {
   const logger = new PysakaLogger({
     format: 'text' as any,
     fallbackSupport: false,
@@ -60,14 +67,18 @@ test.only('Log some err (TEXT)', async (t) => {
   await logger.close();
 });
 
-test('Log smth more with fallback support', async (t) => {
-  const logger = new PysakaLogger();
+test.only('Log smth more with fallback support', async (t) => {
+  const logger = new PysakaLogger({
+    fallbackSupport: true,
+  });
   logger.log('some log info', 'Hello, world!');
   await logger.close();
 });
 
 test('Log to fallback stream: no logs lost', async (t) => {
-  const logger = new PysakaLogger();
+  const logger = new PysakaLogger({
+    fallbackSupport: true,
+  });
 
   logger.log('-------------------->');
 

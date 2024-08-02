@@ -1,6 +1,6 @@
 {
   "name": "pysaka",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Async threaded logger",
   "main": "./dist/index.js",
   "scripts": {

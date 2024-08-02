@@ -28,7 +28,7 @@ parentPort.on('message', ([logLevel, ...args]) => {
       ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
       : logSerializer.serializeJSON(args);
 
-  process.stdout.write(bufferContent);
+  process.stdout.writable && process.stdout.write(bufferContent);
 
   // in case of long operation
   if (workerData.done) {

@@ -34,8 +34,9 @@ class PysakaLogger {
     serializer;
     streamsToDestroy = [];
     isDestroyed = false;
-    debugLogs = false;
+    debugLogsOfLogger = false;
     tempDirPath;
+    neverSpikeCPU = true;
     static __singleInstance = {};
     constructor(__params) {
         const paramsStringified = JSON.stringify(__params ?? {});
@@ -55,8 +56,9 @@ class PysakaLogger {
         this.fallbackSupportEnabled = params.fallbackSupport;
         this.severity = params.severity;
         this.format = params.format;
-        this.debugLogs = params.debugLogs ?? false;
+        this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
         this.tempDirPath = params.tempDirPath ?? '__temp';
+        this.neverSpikeCPU = params.neverSpikeCPU ?? false;
         try {
             this.init();
         }
@@ -71,7 +73,7 @@ class PysakaLogger {
         this.initWorker();
         this.initOutputStream();
         this.fallbackSupportEnabled && this.initFallbackStream();
-        this.debugLogs &&
+        this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is initialized\n`);
     }
     initWorker() {
@@ -90,7 +92,7 @@ class PysakaLogger {
             },
         });
         this.logWorker.unref();
-        this.debugLogs &&
+        this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's worker is initialized\n`);
     }
     initOutputStream() {
@@ -101,7 +103,7 @@ class PysakaLogger {
         const s = (0, node_stream_1.pipeline)(this.logWorker.stdout, this.proxyOutputSteam, () => { });
         this.streamsToDestroy.push(s);
         this.pipeOutputToDestination();
-        this.debugLogs &&
+        this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's output stream is piped\n`);
     }
     initFallbackStream() {
@@ -113,7 +115,7 @@ class PysakaLogger {
         this.fallbackWStream = (0, util_1.openFileInSyncWay)(this.fallbackFilePath, this.serializerEncoding, this.fallbackStreamBufferSize);
         this.serializer = new serializer_js_1.LogSerializer(this.loggerId, this.severity, this.serializerEncoding, this.format);
         this.pipeFallbackStream();
-        this.debugLogs &&
+        this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's fallback stream is on\n`);
     }
     async pipeOutputToDestination() {
@@ -204,7 +206,12 @@ class PysakaLogger {
             }
             serializableArgs.push(item);
         }
-        this.logWorker.postMessage(serializableArgs);
+        if (this.neverSpikeCPU) {
+            setImmediate(this.logWorker.postMessage.bind(this.logWorker, serializableArgs));
+        }
+        else {
+            this.logWorker.postMessage(serializableArgs);
+        }
         return this;
     }
     fallbackWrite(args) {
@@ -229,7 +236,6 @@ class PysakaLogger {
         this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
         this.logWorker.stdout.unpipe();
         this.proxyOutputSteam.unpipe();
-        this.proxyOutputSteam.unpipe(this.destination);
         if (this.fallbackStream) {
             this.fallbackStream.unpipe();
         }
@@ -253,7 +259,7 @@ class PysakaLogger {
             this.fallbackStream.destroy();
             (0, node_fs_1.unlinkSync)(this.fallbackFilePath);
         }
-        this.debugLogs &&
+        this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is shut down\n`);
     }
     async gracefulShutdown() {
@@ -262,11 +268,11 @@ class PysakaLogger {
         this.destinationCheckId && clearTimeout(this.destinationCheckId);
         this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
         this.logWorker.postMessage([0, '__DONE']);
+        this.logWorker.stdout.unpipe(this.proxyOutputSteam);
         await Promise.race([
             (0, promises_1.finished)(this.logWorker.stdout),
             new Promise((resolve) => setTimeout(resolve, 500)),
         ]);
-        this.logWorker.stdout.unpipe(this.proxyOutputSteam);
         this.streamsToDestroy?.forEach((s) => {
             s.removeAllListeners();
         });

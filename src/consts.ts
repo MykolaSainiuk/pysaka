@@ -6,8 +6,9 @@ export const DEFAULT_LOGGER_PARAMS: PysakaLoggerParams = {
   fallbackSupport: false,
   severity: SeverityLevelEnum.INFO,
   format: PrintFormatEnum.JSON,
-  debugLogs: false,
+  debugLogsOfLogger: false,
   tempDirPath: '__temp',
+  neverSpikeCPU: true,
 };
 
 export const DEFAULT_STREAMS_RECOVERY_TIMEOUT = 1000;

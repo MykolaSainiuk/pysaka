@@ -11,4 +11,6 @@ logger.log('some text', 'Hello, world!', {
     'some extra': { a: false, b: [1, 2] },
 });
 logger.log('<--------------------');
-logger.close();
+let intervalId;
+logger.close().finally(() => clearInterval(intervalId));
+intervalId = setInterval(() => { }, 1 << 30);

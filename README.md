@@ -11,8 +11,7 @@ Obvious things:
 - it does not loose logs
   - won't loose it even if the destination (like stdout) is unavailable temporarily
 - it supports json format (surprisingly not all of them do)
-Major one:
-- it does not affect performance of the main process!
+- *major one*-> it does not affect performance of the main process!
 
 It is not BLAZINGLY fast logger because not that characteristic must be a key.
 Look, you should do not care about speed of logging your messages, but you do care about speed/performance of your main process.
