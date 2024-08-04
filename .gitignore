@@ -33,3 +33,4 @@ yarn-error.log*
 *.env
 tsconfig.tsbuildinfo
 __test
+*.map

@@ -25,12 +25,17 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "TS debug",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
-            "program": "pa${workspaceFolder}/src/index.ts",
+            "name": "TS-node",
+            "skipFiles": ["<node_internals>/**", "node_modules/**"],
+            "sourceMaps": true,
+            "stopOnEntry": false,
+            "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node",
             "preLaunchTask": "tsc: build - tsconfig.json",
+            "runtimeArgs": [
+                "--transpile-only",
+                "--esm" 
+            ],
+            "program": "${workspaceFolder}/src/tests/debug_test.ts",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
             ],
@@ -38,7 +43,6 @@
             "internalConsoleOptions": "neverOpen",
             "restart": true,
             "showAsyncStacks": true,
-            "sourceMaps": true,
         }
     ]
 }
