@@ -82,3 +82,4 @@ class LogSerializer extends EventEmitter {
     }
 }
 module.exports = { LogSerializer };
+//# sourceMappingURL=serializer.js.map

@@ -1,8 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateNumericId = exports.truncateFile = exports.openFileSafelyAsStream = exports.openFileInSyncWay = void 0;
+exports.generateNumericId = exports.openFileInSyncWay = void 0;
 const node_fs_1 = require("node:fs");
-const promises_1 = require("node:fs/promises");
 const consts_1 = require("./consts");
 const openFileInSyncWay = (filePath, encoding, highWaterMark, signal) => {
     const filePaths = filePath.split('/');
@@ -23,49 +22,6 @@ const openFileInSyncWay = (filePath, encoding, highWaterMark, signal) => {
     });
 };
 exports.openFileInSyncWay = openFileInSyncWay;
-const openFileSafelyAsStream = async (filePath, encoding, highWaterMark, signal) => {
-    let fd;
-    try {
-        fd = await (0, promises_1.open)(filePath, 'w');
-    }
-    catch (err) {
-        process.stderr.write(`${consts_1.LOGGER_PREFIX} Failed to create file: ${err.message}\n`);
-        throw err;
-    }
-    finally {
-        await fd?.close();
-    }
-    try {
-        await (0, promises_1.access)(filePath, node_fs_1.constants.W_OK);
-    }
-    catch (err) {
-        process.stderr.write(`${consts_1.LOGGER_PREFIX} Failed to open file: ${err.message}\n`);
-        throw err;
-    }
-    const ws = (0, node_fs_1.createWriteStream)(filePath, {
-        encoding,
-        signal,
-        autoClose: true,
-        highWaterMark,
-    });
-    return ws;
-};
-exports.openFileSafelyAsStream = openFileSafelyAsStream;
-const truncateFile = async (filePath) => {
-    let fd;
-    try {
-        fd = await (0, promises_1.open)(filePath, 'w');
-        await fd.truncate();
-    }
-    catch (err) {
-        process.stderr.write(`${consts_1.LOGGER_PREFIX} Failed to truncate file: ${err.message}\n`);
-        throw err;
-    }
-    finally {
-        await fd?.close();
-    }
-};
-exports.truncateFile = truncateFile;
 function createEmptyFile(filePath) {
     let fd;
     try {
@@ -96,3 +52,4 @@ const generateNumericId = (l = 10) => {
     return n;
 };
 exports.generateNumericId = generateNumericId;
+//# sourceMappingURL=util.js.map

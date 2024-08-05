@@ -13,3 +13,4 @@ exports.DEFAULT_LOGGER_PARAMS = {
 };
 exports.DEFAULT_STREAMS_RECOVERY_TIMEOUT = 1000;
 exports.LOGGER_PREFIX = '[Pysaka]';
+//# sourceMappingURL=consts.js.map

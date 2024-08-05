@@ -1,10 +1,12 @@
 import { PysakaLogger } from '../logger';
 
-// const logger = new PysakaLogger();
+// NO Test Runner test
 
 const logger = new PysakaLogger({
   format: 'text' as any,
-  fallbackSupport: true,
+  fallbackSupport: false,
+  debugLogsOfLogger: true,
+  neverSpikeCPU: true,
 });
 
 logger.log('-------------------->');
@@ -16,13 +18,17 @@ logger.log('some text', 'Hello, world!', {
 
 logger.log('<--------------------');
 
+// logger.closeSync();
+
 // eslint-disable-next-line prefer-const
-let intervalId: any;
+let intervalId = setTimeout(() => {}, 1e7);
+logger.close().finally(() => {
+  clearInterval(intervalId);
+});
 
-logger.close().finally(() => clearInterval(intervalId));
-
-intervalId = setInterval(() => {}, 1 << 30);
-
+// setTimeout(() => {
+//   process.exit(0);
+// }, 1000);
 // let i = 0;
 
 // const id = setInterval(() => {

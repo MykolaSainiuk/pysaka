@@ -73,9 +73,9 @@ neverSpikeCPU - flag which de-prioritizes logger work (lower it) in comparison w
 
     // in the end, please, close it
     // otherwise it will prevent the main process to be closed
-    await logger.close();
+    await logger.close(); // recommended way
     // or sync way
-    logger.closeSync();
+    logger.closeSync(); // only if neverSpikeCPU is false
 
 ## Key method logger.write()
 

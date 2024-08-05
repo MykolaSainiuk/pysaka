@@ -4,7 +4,7 @@ import { afterEach, test } from 'node:test';
 
 import { PysakaLogger } from '../logger';
 
-// Sorry world, it's damn Node.js test runner
+// Sorry world, it's damn Node.js test runner: otherwise it's not printing anything
 afterEach((ctx, done) => {
   setTimeout(() => {
     done();
@@ -12,13 +12,9 @@ afterEach((ctx, done) => {
 });
 
 test('PysakaLogger', (t) => {
-  const logger = new PysakaLogger();
+  const logger = new PysakaLogger({ neverSpikeCPU: false });
   assert.ok(logger);
   logger.closeSync();
-});
-
-test.skip('test to caboom!', (t) => {
-  assert.equal(false, true);
 });
 
 test('Log msg', async (t) => {

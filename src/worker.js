@@ -15,12 +15,11 @@ const logSerializer = new LogSerializer(
 );
 const format = logSerializer.getFormat();
 
+const sharedBuffer = workerData.sharedBuffer;
+const sharedArray = new Int32Array(sharedBuffer);
+
 parentPort.on('message', ([logLevel, ...args]) => {
-  if (args?.[0] === '__DONE') {
-    // TODO: surround with Atomics
-    workerData.done = true;
-    return;
-  }
+  if (args?.[0] === '__DONE') return;
 
   // serialization here so no extra CPU consumption in the main thread
   const bufferContent =
@@ -28,12 +27,14 @@ parentPort.on('message', ([logLevel, ...args]) => {
       ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
       : logSerializer.serializeJSON(args);
 
-  process.stdout.writable && process.stdout.write(bufferContent);
-
-  // in case of long operation
-  if (workerData.done) {
-    process.stdout.emit('finish');
-    process.stdout.end();
-    // parentPort.close();
+  if (process.stdout.writable) {
+    process.stdout.write(bufferContent);
+    Atomics.sub(sharedArray, 0, 1);
   }
+  // // in case of long operation
+  // if (workerData.done) {
+  //   process.stdout.emit('finish');
+  //   process.stdout.end();
+  //   // parentPort.close();
+  // }
 });

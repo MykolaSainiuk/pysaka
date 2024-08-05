@@ -7,10 +7,8 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "test built js",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
+            "name": "JS built",
+            "skipFiles": ["<node_internals>/**", "node_modules/**"],
             "program": "${workspaceFolder}/dist/tests/debug_test.js",
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
@@ -29,16 +27,16 @@
             "skipFiles": ["<node_internals>/**", "node_modules/**"],
             "sourceMaps": true,
             "stopOnEntry": false,
-            "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node",
+            // "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node-esm",
             "preLaunchTask": "tsc: build - tsconfig.json",
-            "runtimeArgs": [
-                "--transpile-only",
-                "--esm" 
-            ],
             "program": "${workspaceFolder}/src/tests/debug_test.ts",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
             ],
+            "env": {
+                "NODE_OPTIONS": "--loader ts-node/esm",
+                "NODE_NO_WARNINGS": "1"
+            },
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "restart": true,

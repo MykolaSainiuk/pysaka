@@ -7,7 +7,6 @@ exports.PysakaLogger = void 0;
 const node_fs_1 = require("node:fs");
 const node_path_1 = __importDefault(require("node:path"));
 const node_stream_1 = require("node:stream");
-const promises_1 = require("node:stream/promises");
 const node_worker_threads_1 = require("node:worker_threads");
 const consts_1 = require("./consts");
 const enums_1 = require("./enums");
@@ -37,12 +36,16 @@ class PysakaLogger {
     debugLogsOfLogger = false;
     tempDirPath;
     neverSpikeCPU = true;
+    sharedBuffer;
+    sharedArray;
+    paramsStringified;
     static __singleInstance = {};
     constructor(__params) {
         const paramsStringified = JSON.stringify(__params ?? {});
         if (PysakaLogger.__singleInstance[paramsStringified]) {
             return PysakaLogger.__singleInstance[paramsStringified];
         }
+        this.paramsStringified = paramsStringified;
         PysakaLogger.__singleInstance[paramsStringified] = this;
         const params = { ...consts_1.DEFAULT_LOGGER_PARAMS, ...__params };
         this.destination = params.destination;
@@ -59,6 +62,9 @@ class PysakaLogger {
         this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
         this.tempDirPath = params.tempDirPath ?? '__temp';
         this.neverSpikeCPU = params.neverSpikeCPU ?? false;
+        this.sharedBuffer = new SharedArrayBuffer(4);
+        this.sharedArray = new Int32Array(this.sharedBuffer);
+        Atomics.store(this.sharedArray, 0, 0);
         try {
             this.init();
         }
@@ -78,7 +84,8 @@ class PysakaLogger {
     }
     initWorker() {
         this.loggerId = (0, util_1.generateNumericId)(10);
-        const workerPath = node_path_1.default.join(__dirname, './worker.js');
+        const dirname = process.cwd();
+        const workerPath = node_path_1.default.join(dirname, './src/worker.js');
         this.logWorker = new node_worker_threads_1.Worker(workerPath, {
             name: this.loggerId,
             stdout: true,
@@ -89,6 +96,7 @@ class PysakaLogger {
                 severity: this.severity,
                 encoding: this.serializerEncoding,
                 format: this.format,
+                sharedBuffer: this.sharedBuffer,
             },
         });
         this.logWorker.unref();
@@ -202,15 +210,20 @@ class PysakaLogger {
                     stack: item.stack,
                     cause: item.cause,
                 });
-                continue;
             }
-            serializableArgs.push(item);
+            else {
+                serializableArgs.push(item);
+            }
         }
         if (this.neverSpikeCPU) {
-            setImmediate(this.logWorker.postMessage.bind(this.logWorker, serializableArgs));
+            setImmediate(() => {
+                this.logWorker.postMessage(serializableArgs);
+                Atomics.add(this.sharedArray, 0, 1);
+            });
         }
         else {
             this.logWorker.postMessage(serializableArgs);
+            Atomics.add(this.sharedArray, 0, 1);
         }
         return this;
     }
@@ -234,25 +247,23 @@ class PysakaLogger {
         this.isDestroyed = true;
         this.destinationCheckId && clearTimeout(this.destinationCheckId);
         this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
-        this.logWorker.stdout.unpipe();
-        this.proxyOutputSteam.unpipe();
-        if (this.fallbackStream) {
-            this.fallbackStream.unpipe();
-        }
+        this.logWorker.stdout && this.logWorker.stdout.unpipe();
+        this.proxyOutputSteam && this.proxyOutputSteam.unpipe();
+        this.fallbackStream && this.fallbackStream.unpipe();
         this.streamsToDestroy?.forEach((s) => {
             s.removeAllListeners();
             s.destroyed || s.destroy();
         });
         if (this.logWorker) {
-            this.logWorker.unref();
             this.logWorker.removeAllListeners();
             this.logWorker.terminate();
         }
-        this.proxyOutputSteam.end();
-        this.proxyOutputSteam.removeAllListeners();
-        this.proxyOutputSteam.destroy();
+        if (this.proxyOutputSteam) {
+            this.proxyOutputSteam.end();
+            this.proxyOutputSteam.removeAllListeners();
+            this.proxyOutputSteam.destroy();
+        }
         if (this.fallbackStream) {
-            this.fallbackWStream.emit('finish');
             this.fallbackStream.end();
             this.fallbackStream.removeAllListeners();
             this.fallbackWStream.destroy();
@@ -261,6 +272,8 @@ class PysakaLogger {
         }
         this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is shut down\n`);
+        this.paramsStringified &&
+            delete PysakaLogger.__singleInstance[this.paramsStringified];
     }
     async gracefulShutdown() {
         if (this.isDestroyed)
@@ -268,30 +281,61 @@ class PysakaLogger {
         this.destinationCheckId && clearTimeout(this.destinationCheckId);
         this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
         this.logWorker.postMessage([0, '__DONE']);
-        this.logWorker.stdout.unpipe(this.proxyOutputSteam);
-        await Promise.race([
-            (0, promises_1.finished)(this.logWorker.stdout),
-            new Promise((resolve) => setTimeout(resolve, 500)),
+        await new Promise((resolve) => {
+            const intervalId = setInterval(() => {
+                if (Atomics.load(this.sharedArray, 0) <= 0) {
+                    clearInterval(intervalId);
+                    resolve(null);
+                }
+            }, 1);
+        });
+        await Promise.all([
+            new Promise((resolve) => this.logWorker.stdin.once('drain', resolve)),
+            (() => {
+                setTimeout(() => this.logWorker.stdin.emit('drain'), 0);
+            })(),
         ]);
         this.streamsToDestroy?.forEach((s) => {
-            s.removeAllListeners();
+            s.emit('drain');
         });
-        this.logWorker.stdin.emit('finish');
-        this.logWorker.stdout.emit('end');
-        if (this.proxyOutputSteam.writableNeedDrain) {
-            await (0, node_stream_1.once)(this.proxyOutputSteam, 'drain');
-        }
-        if (process.stdout.writableNeedDrain) {
-            await (0, node_stream_1.once)(process.stdout, 'drain');
-        }
-        await (0, promises_1.finished)(this.proxyOutputSteam);
-        this.destructor();
-    }
-    closeSync() {
+        await Promise.all([
+            new Promise((resolve) => this.proxyOutputSteam.once('drain', resolve)),
+            (() => {
+                setTimeout(() => this.proxyOutputSteam.emit('drain'), 0);
+            })(),
+        ]);
+        await Promise.all([
+            new Promise((resolve) => this.destination.once('drain', resolve)),
+            (() => {
+                setTimeout(() => this.destination.emit('drain'), 0);
+            })(),
+        ]);
         this.destructor();
     }
     async close() {
-        await this.gracefulShutdown();
+        await new Promise((resolve) => this.neverSpikeCPU
+            ? setTimeout(() => this.gracefulShutdown().finally(() => resolve(null)), 1)
+            : this.gracefulShutdown().finally(() => resolve(null)));
+    }
+    closeSync() {
+        if (this.isDestroyed)
+            return;
+        if (this.neverSpikeCPU) {
+            this.debugLogsOfLogger &&
+                process.stdout.write(`${consts_1.LOGGER_PREFIX} Sync closing isn't in case of neverSpikeCPU=true\n`);
+            return;
+        }
+        this.destinationCheckId && clearTimeout(this.destinationCheckId);
+        this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
+        this.logWorker.postMessage([0, '__DONE']);
+        while (Atomics.load(this.sharedArray, 0) > 0) { }
+        this.logWorker.stdin.emit('drain');
+        this.streamsToDestroy?.forEach((s) => {
+            s.emit('drain');
+        });
+        this.proxyOutputSteam.emit('drain');
+        this.destination.emit('drain');
+        setImmediate(() => this.destructor());
     }
     child() {
         return this;
@@ -299,3 +343,4 @@ class PysakaLogger {
 }
 exports.PysakaLogger = PysakaLogger;
 exports.default = PysakaLogger;
+//# sourceMappingURL=logger.js.map

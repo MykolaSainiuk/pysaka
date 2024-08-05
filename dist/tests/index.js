@@ -13,12 +13,9 @@ const logger_1 = require("../logger");
     }, 1);
 });
 (0, node_test_1.test)('PysakaLogger', (t) => {
-    const logger = new logger_1.PysakaLogger();
+    const logger = new logger_1.PysakaLogger({ neverSpikeCPU: false });
     node_assert_1.default.ok(logger);
     logger.closeSync();
-});
-node_test_1.test.skip('test to caboom!', (t) => {
-    node_assert_1.default.equal(false, true);
 });
 (0, node_test_1.test)('Log msg', async (t) => {
     const logger = new logger_1.PysakaLogger();
@@ -157,3 +154,4 @@ node_test_1.test.only('Log smth more with fallback support', async (t) => {
     });
     await logger.close();
 });
+//# sourceMappingURL=index.js.map

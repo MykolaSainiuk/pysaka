@@ -1,6 +1,6 @@
 import { WriteStream, unlinkSync } from 'node:fs';
 import path from 'node:path';
-import { Duplex, PassThrough, once, pipeline } from 'node:stream';
+import { Duplex, PassThrough, pipeline } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
 
@@ -51,6 +51,10 @@ export class PysakaLogger implements IPysakaLogger {
   private tempDirPath: string;
   private neverSpikeCPU: boolean = true;
 
+  private sharedBuffer: SharedArrayBuffer;
+  private sharedArray: Int32Array;
+  private paramsStringified: string;
+
   private static __singleInstance: Record<string, PysakaLogger> = {};
 
   constructor(__params?: PysakaLoggerParams) {
@@ -59,6 +63,7 @@ export class PysakaLogger implements IPysakaLogger {
     if (PysakaLogger.__singleInstance[paramsStringified]) {
       return PysakaLogger.__singleInstance[paramsStringified];
     }
+    this.paramsStringified = paramsStringified;
     PysakaLogger.__singleInstance[paramsStringified] = this;
 
     const params = { ...DEFAULT_LOGGER_PARAMS, ...__params };
@@ -81,6 +86,20 @@ export class PysakaLogger implements IPysakaLogger {
     this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
     this.tempDirPath = params.tempDirPath ?? '__temp';
     this.neverSpikeCPU = params.neverSpikeCPU ?? false;
+
+    // Main thread
+    this.sharedBuffer = new SharedArrayBuffer(4); // A shared buffer with space for one 32-bit integer
+    this.sharedArray = new Int32Array(this.sharedBuffer); // Create a typed array view
+    Atomics.store(this.sharedArray, 0, 0);
+
+    // let lastValue = -100;
+    // setInterval(() => {
+    //   // const newValue = +this.sharedArray[0];
+    //   const newValue = Atomics.load(this.sharedArray, 0);
+    //   if (newValue === lastValue) return;
+    //   process.stdout.write('New value:' + newValue.toString() + '\n');
+    //   lastValue = newValue;
+    // }, 1); // Print the value every 100 milliseconds
 
     try {
       this.init();
@@ -105,7 +124,9 @@ export class PysakaLogger implements IPysakaLogger {
 
   private initWorker() {
     this.loggerId = generateNumericId(10);
-    const workerPath = path.join(__dirname, './worker.js');
+
+    const dirname = process.cwd();
+    const workerPath = path.join(dirname, './src/worker.js');
 
     this.logWorker = new Worker(workerPath, {
       name: this.loggerId,
@@ -117,6 +138,7 @@ export class PysakaLogger implements IPysakaLogger {
         severity: this.severity,
         encoding: this.serializerEncoding,
         format: this.format,
+        sharedBuffer: this.sharedBuffer, // amount of logs in the buffer not written to the destination
       },
     });
     this.logWorker.unref();
@@ -300,17 +322,19 @@ export class PysakaLogger implements IPysakaLogger {
           stack: item.stack,
           cause: item.cause,
         });
-        continue;
+      } else {
+        serializableArgs.push(item);
       }
-      serializableArgs.push(item);
     }
 
     if (this.neverSpikeCPU) {
-      setImmediate(
-        this.logWorker.postMessage.bind(this.logWorker, serializableArgs),
-      );
+      setImmediate(() => {
+        this.logWorker.postMessage(serializableArgs);
+        Atomics.add(this.sharedArray, 0, 1);
+      });
     } else {
       this.logWorker.postMessage(serializableArgs);
+      Atomics.add(this.sharedArray, 0, 1);
     }
 
     return this;
@@ -346,11 +370,10 @@ export class PysakaLogger implements IPysakaLogger {
     this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
 
     // do all possible unpipes
-    this.logWorker.stdout.unpipe();
-    this.proxyOutputSteam.unpipe();
-    if (this.fallbackStream) {
-      this.fallbackStream.unpipe();
-    }
+    this.logWorker.stdout && this.logWorker.stdout.unpipe();
+    this.proxyOutputSteam && this.proxyOutputSteam.unpipe();
+    this.fallbackStream && this.fallbackStream.unpipe();
+
     // pipe results as streams to be cleaned
     this.streamsToDestroy?.forEach((s) => {
       s.removeAllListeners();
@@ -358,21 +381,24 @@ export class PysakaLogger implements IPysakaLogger {
     });
 
     if (this.logWorker) {
-      this.logWorker.unref();
+      // this.logWorker.unref();
       this.logWorker.removeAllListeners();
       this.logWorker.terminate();
     }
 
-    this.proxyOutputSteam.end();
-    this.proxyOutputSteam.removeAllListeners();
-    this.proxyOutputSteam.destroy();
+    if (this.proxyOutputSteam) {
+      this.proxyOutputSteam.end();
+      this.proxyOutputSteam.removeAllListeners();
+      this.proxyOutputSteam.destroy();
+    }
 
     if (this.fallbackStream) {
-      this.fallbackWStream.emit('finish');
+      // this.fallbackWStream.emit('finish');
       this.fallbackStream.end();
       this.fallbackStream.removeAllListeners();
       this.fallbackWStream.destroy();
       this.fallbackStream.destroy();
+
       unlinkSync(this.fallbackFilePath);
     }
 
@@ -381,6 +407,10 @@ export class PysakaLogger implements IPysakaLogger {
     // );
     this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
+
+    // drop Singleton cached instance
+    this.paramsStringified &&
+      delete PysakaLogger.__singleInstance[this.paramsStringified];
   }
 
   public async gracefulShutdown() {
@@ -391,38 +421,82 @@ export class PysakaLogger implements IPysakaLogger {
 
     this.logWorker.postMessage([0, '__DONE']);
 
-    this.logWorker.stdout.unpipe(this.proxyOutputSteam);
-    // this.proxyOutputSteam.unpipe(this.destination);
+    // yeah, but it's a bit more complicated
+    await new Promise((resolve) => {
+      const intervalId = setInterval(() => {
+        if (Atomics.load(this.sharedArray, 0) <= 0) {
+          clearInterval(intervalId);
+          resolve(null);
+        }
+      }, 1);
+    });
 
-    await Promise.race([
-      finished(this.logWorker.stdout),
-      new Promise((resolve) => setTimeout(resolve, 500)),
+    await Promise.all([
+      new Promise((resolve) => this.logWorker.stdin.once('drain', resolve)),
+      (() => {
+        setTimeout(() => this.logWorker.stdin.emit('drain'), 0);
+      })(),
+    ]);
+    this.streamsToDestroy?.forEach((s) => {
+      // s.removeAllListeners();
+      s.emit('drain');
+    });
+    await Promise.all([
+      new Promise((resolve) => this.proxyOutputSteam.once('drain', resolve)),
+      (() => {
+        setTimeout(() => this.proxyOutputSteam.emit('drain'), 0);
+      })(),
+    ]);
+    await Promise.all([
+      new Promise((resolve) => this.destination.once('drain', resolve)),
+      (() => {
+        setTimeout(() => this.destination.emit('drain'), 0);
+      })(),
     ]);
 
-    this.streamsToDestroy?.forEach((s) => {
-      s.removeAllListeners();
-    });
-    this.logWorker.stdin.emit('finish');
-    this.logWorker.stdout.emit('end');
-
-    if (this.proxyOutputSteam.writableNeedDrain) {
-      await once(this.proxyOutputSteam, 'drain');
-    }
-    if (process.stdout.writableNeedDrain) {
-      await once(process.stdout, 'drain');
-    }
-
-    await finished(this.proxyOutputSteam);
-
-    this.destructor();
-  }
-
-  public closeSync() {
     this.destructor();
   }
 
   public async close() {
-    await this.gracefulShutdown();
+    // bcz we must allow all neverSpikeCPU setImmediate callbacks to finish
+    await new Promise((resolve) =>
+      this.neverSpikeCPU
+        ? setTimeout(
+            () => this.gracefulShutdown().finally(() => resolve(null)),
+            1,
+          )
+        : this.gracefulShutdown().finally(() => resolve(null)),
+    );
+    // await this.gracefulShutdown();
+  }
+
+  public closeSync() {
+    if (this.isDestroyed) return;
+    if (this.neverSpikeCPU) {
+      this.debugLogsOfLogger &&
+        process.stdout.write(
+          `${LOGGER_PREFIX} Sync closing isn't in case of neverSpikeCPU=true\n`,
+        );
+      return;
+    }
+
+    this.destinationCheckId && clearTimeout(this.destinationCheckId);
+    this.fallbackCheckId && clearTimeout(this.fallbackCheckId);
+
+    this.logWorker.postMessage([0, '__DONE']);
+
+    // yeah, but it's a bit more complicated
+    while (Atomics.load(this.sharedArray, 0) > 0) {}
+
+    this.logWorker.stdin.emit('drain');
+    this.streamsToDestroy?.forEach((s) => {
+      // s.removeAllListeners();
+      s.emit('drain');
+    });
+    this.proxyOutputSteam.emit('drain');
+    this.destination.emit('drain');
+
+    setImmediate(() => this.destructor());
   }
 
   // TODO: implement

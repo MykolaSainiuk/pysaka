@@ -21,3 +21,4 @@ var PrintFormatEnum;
     PrintFormatEnum["JSON"] = "json";
     PrintFormatEnum["TEXT"] = "text";
 })(PrintFormatEnum || (exports.PrintFormatEnum = PrintFormatEnum = {}));
+//# sourceMappingURL=enums.js.map
