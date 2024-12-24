@@ -3,6 +3,7 @@
   "version": "1.0.9",
   "description": "Async threaded logger",
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "prebuild": "rimraf ./dist/*.js && rimraf ./dist/tests/*.js",
     "test:only": "npm run build && node --test-only ./dist/tests/index.js",

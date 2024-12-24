@@ -1,0 +1,38 @@
+import type { IPysakaLogger, PysakaLoggerParams } from './types';
+export declare class PysakaLogger implements IPysakaLogger {
+    private destination;
+    private severity;
+    private format;
+    private serializerEncoding;
+    private proxyOutputSteam;
+    private proxyOutputSteamBufferSize;
+    private loggerId;
+    private logWorker;
+    private streamsToDestroy;
+    private isDestroyed;
+    private debugLogsOfLogger;
+    private neverSpikeCPU;
+    private sharedBuffer;
+    private sharedArray;
+    private paramsStringified;
+    private static __singleInstance;
+    constructor(__params?: PysakaLoggerParams);
+    log(...args: any[]): this;
+    info(...args: any[]): this;
+    warn(...args: any[]): this;
+    error(...args: any[]): this;
+    debug(...args: any[]): this;
+    fatal(...args: any[]): this;
+    private init;
+    private initWorker;
+    private initOutputStream;
+    private pipeOutputToDestination;
+    private handleOutputStreamError;
+    private write;
+    private destructor;
+    gracefulShutdown(): Promise<void>;
+    close(): Promise<void>;
+    closeSync(): void;
+    child(): this;
+}
+export default PysakaLogger;

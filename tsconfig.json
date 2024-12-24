@@ -9,7 +9,7 @@
     "module": "NodeNext",
     "target": "ESNext",
     "moduleResolution": "NodeNext",
-    "declaration": false,
+    "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
