@@ -4,7 +4,6 @@ import { PysakaLogger } from '../logger';
 
 const logger = new PysakaLogger({
   format: 'text' as any,
-  fallbackSupport: false,
   debugLogsOfLogger: true,
   neverSpikeCPU: true,
 });
