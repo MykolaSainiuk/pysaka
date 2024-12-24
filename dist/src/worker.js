@@ -7,17 +7,18 @@ if (isMainThread) {
 const { LogSerializer } = require('./serializer.js');
 const logSerializer = new LogSerializer(workerData.loggerId, workerData.severity, workerData.encoding, workerData.format);
 const format = logSerializer.getFormat();
-const sharedBuffer = workerData.sharedBuffer;
-const sharedArray = new Int32Array(sharedBuffer);
+const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
+const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 parentPort.on('message', ([logLevel, ...args]) => {
     if (args?.[0] === '__KILL_THE_WORKER')
         return;
+    const lvl = logLevel ?? logSerializer.severity;
     const bufferContent = format === 'text'
-        ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
-        : logSerializer.serializeJSON(args);
+        ? logSerializer.serializeText(args, lvl)
+        : logSerializer.serializeJSON(args, lvl);
     if (process.stdout.writable) {
         process.stdout.write(bufferContent);
-        Atomics.sub(sharedArray, 0, 1);
+        Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
     }
 });
 //# sourceMappingURL=worker.js.map

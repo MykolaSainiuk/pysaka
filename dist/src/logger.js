@@ -23,13 +23,14 @@ class PysakaLogger {
     isDestroyed = false;
     debugLogsOfLogger = false;
     neverSpikeCPU = true;
-    sharedBuffer;
-    sharedArray;
+    sharedMemoryAsBuffer;
+    atomicLogsLeftToWriteCountdown;
     paramsStringified;
     static __singleInstance = {};
     constructor(__params) {
         const paramsStringified = JSON.stringify(__params ?? {});
         if (PysakaLogger.__singleInstance[paramsStringified]) {
+            PysakaLogger.__singleInstance[paramsStringified].count++;
             return PysakaLogger.__singleInstance[paramsStringified].logger;
         }
         this.paramsStringified = paramsStringified;
@@ -46,9 +47,9 @@ class PysakaLogger {
         this.format = params.format;
         this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
         this.neverSpikeCPU = params.neverSpikeCPU ?? false;
-        this.sharedBuffer = new SharedArrayBuffer(4);
-        this.sharedArray = new Int32Array(this.sharedBuffer);
-        Atomics.store(this.sharedArray, 0, 0);
+        this.sharedMemoryAsBuffer = new SharedArrayBuffer(4);
+        this.atomicLogsLeftToWriteCountdown = new Int32Array(this.sharedMemoryAsBuffer);
+        Atomics.store(this.atomicLogsLeftToWriteCountdown, 0, 0);
         try {
             this.init();
         }
@@ -97,7 +98,7 @@ class PysakaLogger {
                 severity: this.severity,
                 encoding: this.serializerEncoding,
                 format: this.format,
-                sharedBuffer: this.sharedBuffer,
+                sharedMemoryAsBuffer: this.sharedMemoryAsBuffer,
             },
         });
         this.logWorker.unref();
@@ -155,12 +156,12 @@ class PysakaLogger {
         if (this.neverSpikeCPU) {
             setImmediate(() => {
                 this.logWorker.postMessage(serializableArgs);
-                Atomics.add(this.sharedArray, 0, 1);
+                Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
             });
         }
         else {
             this.logWorker.postMessage(serializableArgs);
-            Atomics.add(this.sharedArray, 0, 1);
+            Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
         }
         return this;
     }
@@ -168,6 +169,8 @@ class PysakaLogger {
         if (this.isDestroyed)
             return;
         this.isDestroyed = true;
+        this.paramsStringified &&
+            delete PysakaLogger.__singleInstance[this.paramsStringified];
         this.logWorker.stdout && this.logWorker.stdout.unpipe();
         this.proxyOutputSteam && this.proxyOutputSteam.unpipe();
         this.streamsToDestroy?.forEach((s) => {
@@ -185,8 +188,6 @@ class PysakaLogger {
         }
         this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is shut down\n`);
-        this.paramsStringified &&
-            delete PysakaLogger.__singleInstance[this.paramsStringified];
     }
     async gracefulShutdown() {
         if (this.isDestroyed)
@@ -194,7 +195,7 @@ class PysakaLogger {
         this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
         await new Promise((resolve) => {
             const intervalId = setInterval(() => {
-                if (Atomics.load(this.sharedArray, 0) <= 0) {
+                if (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) <= 0) {
                     clearInterval(intervalId);
                     resolve(null);
                 }
@@ -228,6 +229,7 @@ class PysakaLogger {
             return;
         PysakaLogger.__singleInstance[this.paramsStringified].count--;
         if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+            delete PysakaLogger.__singleInstance[this.paramsStringified].logger;
             return;
         }
         await new Promise((resolve) => this.neverSpikeCPU
@@ -245,10 +247,11 @@ class PysakaLogger {
         }
         PysakaLogger.__singleInstance[this.paramsStringified].count--;
         if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+            delete PysakaLogger.__singleInstance[this.paramsStringified].logger;
             return;
         }
         this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
-        while (Atomics.load(this.sharedArray, 0) > 0) { }
+        while (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) > 0) { }
         this.logWorker.stdin.emit('drain');
         this.streamsToDestroy?.forEach((s) => {
             s.emit('drain');

@@ -22,10 +22,11 @@ parentPort.on('message', ([logLevel, ...args]) => {
   if (args?.[0] === '__KILL_THE_WORKER') return;
 
   // serialization here so no extra CPU consumption in the main thread
+  const lvl = logLevel ?? logSerializer.severity;
   const bufferContent =
     format === 'text'
-      ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
-      : logSerializer.serializeJSON(args);
+      ? logSerializer.serializeText(args, lvl)
+      : logSerializer.serializeJSON(args, lvl);
 
   if (process.stdout.writable) {
     process.stdout.write(bufferContent);

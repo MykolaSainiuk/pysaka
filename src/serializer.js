@@ -31,8 +31,8 @@ class LogSerializer extends EventEmitter {
     return this.format;
   }
 
-  serializeJSON(args) {
-    const logObj = this.getLogItem(args);
+  serializeJSON(args, logLevel) {
+    const logObj = this.getLogItem(args, logLevel);
 
     return Buffer.from(
       JSON.stringify(logObj, undefined, 0) + '\n',

@@ -8,6 +8,7 @@
     "prebuild": "rimraf ./dist/*.js && rimraf ./dist/tests/*.js",
     "test:only": "npm run build && node --test-only ./dist/tests/index.js",
     "test": "npm run build && node --test ./dist/tests/index.js",
+    "test:debug": "npm run build && node --test ./dist/tests/debug.js",
     "test:cov": "npm run build && node --test --experimental-test-coverage --test-reporter=spec ./dist/tests/index.js",
     "lint": "eslint --ext .ts .",
     "format": "prettier --write \"./**/*.ts\"",

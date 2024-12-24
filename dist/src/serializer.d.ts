@@ -5,7 +5,7 @@ export class LogSerializer extends EventEmitter {
     encoding: string;
     format: string;
     getFormat(): string;
-    serializeJSON(args: any): Buffer;
+    serializeJSON(args: any, logLevel: any): Buffer;
     serializeText(args: any, logLevel: any): Buffer;
     getLogItem([msg, ...rest]: [any, ...any[]], logLevel: any): {
         time: number;

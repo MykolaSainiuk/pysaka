@@ -12,8 +12,8 @@ export declare class PysakaLogger implements IPysakaLogger {
     private isDestroyed;
     private debugLogsOfLogger;
     private neverSpikeCPU;
-    private sharedBuffer;
-    private sharedArray;
+    private sharedMemoryAsBuffer;
+    private atomicLogsLeftToWriteCountdown;
     private paramsStringified;
     private static __singleInstance;
     constructor(__params?: PysakaLoggerParams);

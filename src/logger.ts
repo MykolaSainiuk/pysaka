@@ -43,6 +43,7 @@ export class PysakaLogger implements IPysakaLogger {
     // TODO: singleton for now
     const paramsStringified = JSON.stringify(__params ?? {});
     if (PysakaLogger.__singleInstance[paramsStringified]) {
+      PysakaLogger.__singleInstance[paramsStringified].count++;
       return PysakaLogger.__singleInstance[paramsStringified].logger;
     }
     this.paramsStringified = paramsStringified;
@@ -229,6 +230,9 @@ export class PysakaLogger implements IPysakaLogger {
   private destructor() {
     if (this.isDestroyed) return;
     this.isDestroyed = true;
+    // drop Singleton cached instance
+    this.paramsStringified &&
+      delete PysakaLogger.__singleInstance[this.paramsStringified];
 
     // do all possible unpipes
     this.logWorker.stdout && this.logWorker.stdout.unpipe();
@@ -257,10 +261,6 @@ export class PysakaLogger implements IPysakaLogger {
     // );
     this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
-
-    // drop Singleton cached instance
-    this.paramsStringified &&
-      delete PysakaLogger.__singleInstance[this.paramsStringified];
   }
 
   public async gracefulShutdown() {
@@ -306,8 +306,10 @@ export class PysakaLogger implements IPysakaLogger {
 
   public async close() {
     if (this.isDestroyed) return;
+
     PysakaLogger.__singleInstance[this.paramsStringified].count--;
     if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+      delete PysakaLogger.__singleInstance[this.paramsStringified].logger;
       // not the last instance
       return;
     }
@@ -329,8 +331,10 @@ export class PysakaLogger implements IPysakaLogger {
         );
       return;
     }
+
     PysakaLogger.__singleInstance[this.paramsStringified].count--;
     if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+      delete PysakaLogger.__singleInstance[this.paramsStringified].logger;
       // not the last instance
       return;
     }

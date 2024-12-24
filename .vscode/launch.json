@@ -7,9 +7,9 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "JS built",
+            "name": "tests/index.ts",
             "skipFiles": ["<node_internals>/**", "node_modules/**"],
-            "program": "${workspaceFolder}/dist/tests/debug_test.js",
+            "program": "${workspaceFolder}/dist/tests/index.js",
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
@@ -23,13 +23,13 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "TS-node",
+            "name": "tests/debug.ts",
             "skipFiles": ["<node_internals>/**", "node_modules/**"],
             "sourceMaps": true,
             "stopOnEntry": false,
             // "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node-esm",
-            "preLaunchTask": "tsc: build - tsconfig.json",
-            "program": "${workspaceFolder}/src/tests/debug_test.ts",
+            // "preLaunchTask": "tsc: build - tsconfig.json",
+            "program": "${workspaceFolder}/tests/debug.ts",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
             ],
