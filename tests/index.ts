@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import { afterEach, test } from 'node:test';
 
-import { PysakaLogger } from '../logger';
+import { PysakaLogger } from '../src/logger';
 
 // Sorry world, it's damn Node.js test runner: otherwise it's not printing anything
 afterEach((ctx, done) => {

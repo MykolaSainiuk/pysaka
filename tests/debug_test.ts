@@ -1,4 +1,4 @@
-import { PysakaLogger } from '../logger';
+import { PysakaLogger } from '../src/logger';
 
 // NO Test Runner test
 

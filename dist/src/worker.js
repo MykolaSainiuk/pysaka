@@ -10,7 +10,7 @@ const format = logSerializer.getFormat();
 const sharedBuffer = workerData.sharedBuffer;
 const sharedArray = new Int32Array(sharedBuffer);
 parentPort.on('message', ([logLevel, ...args]) => {
-    if (args?.[0] === '__DONE')
+    if (args?.[0] === '__KILL_THE_WORKER')
         return;
     const bufferContent = format === 'text'
         ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)

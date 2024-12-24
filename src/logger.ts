@@ -11,8 +11,6 @@ import type {
 } from './types';
 import { generateNumericId } from './util';
 
-// __DONE is customer this logger-specific termination signal
-
 // EventEmitter.defaultMaxListeners = 100;
 export class PysakaLogger implements IPysakaLogger {
   private destination: DestinationType;
@@ -32,20 +30,26 @@ export class PysakaLogger implements IPysakaLogger {
   private debugLogsOfLogger: boolean = false;
   private neverSpikeCPU: boolean = true;
 
-  private sharedBuffer: SharedArrayBuffer;
-  private sharedArray: Int32Array;
+  private sharedMemoryAsBuffer: SharedArrayBuffer;
+  private atomicLogsLeftToWriteCountdown: Int32Array;
   private paramsStringified: string;
 
-  private static __singleInstance: Record<string, PysakaLogger> = {};
+  private static __singleInstance: Record<
+    string,
+    { logger: PysakaLogger; count: number }
+  > = {};
 
   constructor(__params?: PysakaLoggerParams) {
     // TODO: singleton for now
     const paramsStringified = JSON.stringify(__params ?? {});
     if (PysakaLogger.__singleInstance[paramsStringified]) {
-      return PysakaLogger.__singleInstance[paramsStringified];
+      return PysakaLogger.__singleInstance[paramsStringified].logger;
     }
     this.paramsStringified = paramsStringified;
-    PysakaLogger.__singleInstance[paramsStringified] = this;
+    PysakaLogger.__singleInstance[paramsStringified] = {
+      logger: this,
+      count: 1,
+    };
 
     const params = { ...DEFAULT_LOGGER_PARAMS, ...__params };
 
@@ -61,9 +65,11 @@ export class PysakaLogger implements IPysakaLogger {
     this.neverSpikeCPU = params.neverSpikeCPU ?? false;
 
     // Main thread
-    this.sharedBuffer = new SharedArrayBuffer(4); // A shared buffer with space for one 32-bit integer
-    this.sharedArray = new Int32Array(this.sharedBuffer); // Create a typed array view
-    Atomics.store(this.sharedArray, 0, 0);
+    this.sharedMemoryAsBuffer = new SharedArrayBuffer(4); // A shared buffer with space for one 32-bit integer
+    this.atomicLogsLeftToWriteCountdown = new Int32Array(
+      this.sharedMemoryAsBuffer,
+    ); // Create a typed array view
+    Atomics.store(this.atomicLogsLeftToWriteCountdown, 0, 0);
 
     // let lastValue = -100;
     // setInterval(() => {
@@ -130,7 +136,7 @@ export class PysakaLogger implements IPysakaLogger {
         severity: this.severity,
         encoding: this.serializerEncoding,
         format: this.format,
-        sharedBuffer: this.sharedBuffer, // amount of logs in the buffer not written to the destination
+        sharedMemoryAsBuffer: this.sharedMemoryAsBuffer, // amount of logs in the buffer not written to the destination
       },
     });
     this.logWorker.unref();
@@ -210,11 +216,11 @@ export class PysakaLogger implements IPysakaLogger {
     if (this.neverSpikeCPU) {
       setImmediate(() => {
         this.logWorker.postMessage(serializableArgs);
-        Atomics.add(this.sharedArray, 0, 1);
+        Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
       });
     } else {
       this.logWorker.postMessage(serializableArgs);
-      Atomics.add(this.sharedArray, 0, 1);
+      Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
     }
 
     return this;
@@ -260,12 +266,12 @@ export class PysakaLogger implements IPysakaLogger {
   public async gracefulShutdown() {
     if (this.isDestroyed) return;
 
-    this.logWorker.postMessage([0, '__DONE']);
+    this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
 
     // yeah, but it's a bit more complicated
     await new Promise((resolve) => {
       const intervalId = setInterval(() => {
-        if (Atomics.load(this.sharedArray, 0) <= 0) {
+        if (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) <= 0) {
           clearInterval(intervalId);
           resolve(null);
         }
@@ -299,14 +305,17 @@ export class PysakaLogger implements IPysakaLogger {
   }
 
   public async close() {
-    // bcz we must allow all neverSpikeCPU setImmediate callbacks to finish
+    if (this.isDestroyed) return;
+    PysakaLogger.__singleInstance[this.paramsStringified].count--;
+    if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+      // not the last instance
+      return;
+    }
     await new Promise((resolve) =>
       this.neverSpikeCPU
-        ? setTimeout(
-            () => this.gracefulShutdown().finally(() => resolve(null)),
-            1,
-          )
-        : this.gracefulShutdown().finally(() => resolve(null)),
+        ? setTimeout(() => this.gracefulShutdown().finally(resolve as never), 1)
+        : // bcz we must allow all neverSpikeCPU setImmediate callbacks to finish
+          this.gracefulShutdown().finally(resolve as never),
     );
     // await this.gracefulShutdown();
   }
@@ -316,15 +325,20 @@ export class PysakaLogger implements IPysakaLogger {
     if (this.neverSpikeCPU) {
       this.debugLogsOfLogger &&
         process.stdout.write(
-          `${LOGGER_PREFIX} Sync closing isn't  allowed when neverSpikeCPU=true\n`,
+          `${LOGGER_PREFIX} Sync closing isn't allowed when neverSpikeCPU=true\n`,
         );
       return;
     }
+    PysakaLogger.__singleInstance[this.paramsStringified].count--;
+    if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+      // not the last instance
+      return;
+    }
 
-    this.logWorker.postMessage([0, '__DONE']);
+    this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
 
     // yeah, but it's a bit more complicated
-    while (Atomics.load(this.sharedArray, 0) > 0) {}
+    while (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) > 0) {}
 
     this.logWorker.stdin.emit('drain');
     this.streamsToDestroy?.forEach((s) => {

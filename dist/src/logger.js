@@ -30,10 +30,13 @@ class PysakaLogger {
     constructor(__params) {
         const paramsStringified = JSON.stringify(__params ?? {});
         if (PysakaLogger.__singleInstance[paramsStringified]) {
-            return PysakaLogger.__singleInstance[paramsStringified];
+            return PysakaLogger.__singleInstance[paramsStringified].logger;
         }
         this.paramsStringified = paramsStringified;
-        PysakaLogger.__singleInstance[paramsStringified] = this;
+        PysakaLogger.__singleInstance[paramsStringified] = {
+            logger: this,
+            count: 1,
+        };
         const params = { ...consts_1.DEFAULT_LOGGER_PARAMS, ...__params };
         this.destination = params.destination;
         if (!this.destination.writable) {
@@ -188,7 +191,7 @@ class PysakaLogger {
     async gracefulShutdown() {
         if (this.isDestroyed)
             return;
-        this.logWorker.postMessage([0, '__DONE']);
+        this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
         await new Promise((resolve) => {
             const intervalId = setInterval(() => {
                 if (Atomics.load(this.sharedArray, 0) <= 0) {
@@ -221,19 +224,30 @@ class PysakaLogger {
         this.destructor();
     }
     async close() {
+        if (this.isDestroyed)
+            return;
+        PysakaLogger.__singleInstance[this.paramsStringified].count--;
+        if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+            return;
+        }
         await new Promise((resolve) => this.neverSpikeCPU
-            ? setTimeout(() => this.gracefulShutdown().finally(() => resolve(null)), 1)
-            : this.gracefulShutdown().finally(() => resolve(null)));
+            ? setTimeout(() => this.gracefulShutdown().finally(resolve), 1)
+            :
+                this.gracefulShutdown().finally(resolve));
     }
     closeSync() {
         if (this.isDestroyed)
             return;
         if (this.neverSpikeCPU) {
             this.debugLogsOfLogger &&
-                process.stdout.write(`${consts_1.LOGGER_PREFIX} Sync closing isn't  allowed when neverSpikeCPU=true\n`);
+                process.stdout.write(`${consts_1.LOGGER_PREFIX} Sync closing isn't allowed when neverSpikeCPU=true\n`);
             return;
         }
-        this.logWorker.postMessage([0, '__DONE']);
+        PysakaLogger.__singleInstance[this.paramsStringified].count--;
+        if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
+            return;
+        }
+        this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
         while (Atomics.load(this.sharedArray, 0) > 0) { }
         this.logWorker.stdin.emit('drain');
         this.streamsToDestroy?.forEach((s) => {
