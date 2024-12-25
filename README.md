@@ -1,6 +1,6 @@
 # Another one?
 
-A logger to offload the main thread of the main process in order not to affect performance.
+A zero-dependency logger to offload the main thread of the main process in order not to affect performance.
 
 ## Description
 
@@ -58,6 +58,10 @@ or
     logger<write>('Hello world!', { some: 'data' });
 
 <ins>Note</ins>: you are not obliged to specify the first argument as a string however it's advised to do so, especially if you use 'text' format (for optimal formatting).
+
+### How use thru modules?
+
+There are few ways how to approach a logger usage
 
 ## Available methods
 

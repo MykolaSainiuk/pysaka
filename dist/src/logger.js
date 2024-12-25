@@ -7,6 +7,8 @@ exports.PysakaLogger = void 0;
 const node_path_1 = __importDefault(require("node:path"));
 const promises_1 = require("node:stream/promises");
 const node_worker_threads_1 = require("node:worker_threads");
+const node_v8_1 = require("node:v8");
+const node_buffer_1 = require("node:buffer");
 const consts_1 = require("./consts");
 const enums_1 = require("./enums");
 const util_1 = require("./util");
@@ -14,12 +16,11 @@ class PysakaLogger {
     destination;
     severity;
     format;
+    debugLogsOfLogger = false;
     serializerEncoding = 'utf-8';
+    isDestroyed = false;
     loggerId;
     logWorker;
-    isDestroyed = false;
-    debugLogsOfLogger = false;
-    neverSpikeCPU = true;
     sharedMemoryAsBuffer;
     atomicLogsLeftToWriteCountdown;
     paramsStringified;
@@ -27,7 +28,7 @@ class PysakaLogger {
     constructor(__params) {
         const paramsStringified = JSON.stringify(__params ?? {});
         if (PysakaLogger.__cache[paramsStringified]) {
-            PysakaLogger.__cache[paramsStringified].count++;
+            PysakaLogger.__cache[paramsStringified].count += 1;
             return PysakaLogger.__cache[paramsStringified].logger;
         }
         this.paramsStringified = paramsStringified;
@@ -43,7 +44,6 @@ class PysakaLogger {
         this.severity = params.severity;
         this.format = params.format;
         this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
-        this.neverSpikeCPU = params.neverSpikeCPU ?? false;
         this.sharedMemoryAsBuffer = new SharedArrayBuffer(4);
         this.atomicLogsLeftToWriteCountdown = new Int32Array(this.sharedMemoryAsBuffer);
         Atomics.store(this.atomicLogsLeftToWriteCountdown, 0, 0);
@@ -99,6 +99,7 @@ class PysakaLogger {
             },
         });
         this.logWorker.unref();
+        this.logWorker.stderr.pipe(process.stderr);
         this.debugLogsOfLogger &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's worker is initialized\n`);
     }
@@ -122,31 +123,29 @@ class PysakaLogger {
         if (logLevel < this.severity) {
             return this;
         }
-        const serializableArgs = new Array(1 + args.length);
-        serializableArgs[0] = logLevel;
-        for (let i = 0; i < args.length; i++) {
-            const item = args[i];
-            if (item instanceof Error) {
-                serializableArgs[i + 1] = {
-                    message: item.message,
-                    stack: item.stack,
-                    cause: item.cause,
-                };
-            }
-            else {
-                serializableArgs[i + 1] = item;
-            }
+        const buffers = [
+            consts_1.BUFFER_LOGS_START_SEPARATOR,
+            node_buffer_1.Buffer.from(String(logLevel)),
+            consts_1.BUFFER_ARGS_SEPARATOR,
+        ];
+        const l = args.length;
+        for (let i = 0; i < l; i++) {
+            const item = args[i] instanceof Error
+                ? {
+                    message: args[i].message,
+                    stack: args[i].stack,
+                }
+                : args[i];
+            const itemBuf = item === Object(item)
+                ? (0, node_v8_1.serialize)(item)
+                : node_buffer_1.Buffer.from(String(item), 'utf-8');
+            const type = (0, util_1.getTypeAsBuffer)(item);
+            buffers.push(type, itemBuf);
+            i < l - 1 && buffers.push(consts_1.BUFFER_ARGS_SEPARATOR);
         }
-        if (this.neverSpikeCPU) {
-            setImmediate(() => {
-                this.logWorker.postMessage(serializableArgs);
-                Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
-            });
-        }
-        else {
-            this.logWorker.postMessage(serializableArgs);
-            Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
-        }
+        buffers.push(consts_1.BUFFER_LOGS_END_SEPARATOR);
+        const bufToSend = node_buffer_1.Buffer.concat(buffers);
+        this.logWorker.stdin.write(bufToSend);
         return this;
     }
     destructor() {
@@ -165,16 +164,11 @@ class PysakaLogger {
     async gracefulShutdown() {
         if (this.isDestroyed)
             return;
-        await new Promise((resolve) => {
-            const intervalId = setInterval(() => {
-                if (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) <= 0) {
-                    clearInterval(intervalId);
-                    resolve(void 0);
-                }
-            }, 1);
-        });
-        this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
-        await (0, promises_1.finished)(this.logWorker.stdin);
+        this.logWorker.postMessage(-1);
+        await Promise.all([
+            (0, promises_1.finished)(this.logWorker.stdout),
+            (0, promises_1.finished)(this.logWorker.stdin),
+        ]);
         await Promise.all([
             new Promise((resolve) => this.destination.once('drain', resolve)),
             setTimeout(() => this.destination.emit('drain'), 1),
@@ -186,29 +180,22 @@ class PysakaLogger {
             return;
         PysakaLogger.__cache[this.paramsStringified].count--;
         if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
-            delete PysakaLogger.__cache[this.paramsStringified].logger;
             return;
         }
-        await new Promise((resolve) => this.neverSpikeCPU
-            ? setTimeout(() => this.gracefulShutdown().finally(resolve), 1)
-            :
-                this.gracefulShutdown().finally(resolve));
+        delete PysakaLogger.__cache[this.paramsStringified];
+        await new Promise((resolve) => this.gracefulShutdown().finally(resolve));
     }
     closeSync() {
         if (this.isDestroyed)
             return;
-        if (this.neverSpikeCPU) {
-            this.debugLogsOfLogger &&
-                process.stdout.write(`${consts_1.LOGGER_PREFIX} Sync closing isn't allowed when neverSpikeCPU=true\n`);
-            return;
-        }
         PysakaLogger.__cache[this.paramsStringified].count--;
         if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
-            delete PysakaLogger.__cache[this.paramsStringified].logger;
             return;
         }
+        delete PysakaLogger.__cache[this.paramsStringified];
+        Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
+        this.logWorker.postMessage(-1);
         while (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) > 0) { }
-        this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
         this.destination.emit('drain');
         setTimeout(() => this.destructor(), 1);
     }

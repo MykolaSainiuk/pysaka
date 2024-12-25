@@ -12,7 +12,7 @@ afterEach((ctx, done) => {
 });
 
 test('PysakaLogger', (t) => {
-  const logger = new PysakaLogger({ neverSpikeCPU: false });
+  const logger = new PysakaLogger();
   assert.ok(logger);
   logger.closeSync();
 });

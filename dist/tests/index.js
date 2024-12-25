@@ -13,7 +13,7 @@ const logger_1 = require("../src/logger");
     }, 1);
 });
 (0, node_test_1.test)('PysakaLogger', (t) => {
-    const logger = new logger_1.PysakaLogger({ neverSpikeCPU: false });
+    const logger = new logger_1.PysakaLogger();
     node_assert_1.default.ok(logger);
     logger.closeSync();
 });

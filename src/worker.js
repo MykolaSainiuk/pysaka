@@ -1,5 +1,8 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { isMainThread, parentPort, workerData } = require('node:worker_threads');
+const { isMainThread, workerData, parentPort } = require('node:worker_threads');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { deserialize } = require('node:v8');
+// const { isMainThread, parentPort, workerData } = require('node:worker_threads');
 if (isMainThread) {
   throw new Error('This file is not intended be loaded in the main thread');
 }
@@ -18,16 +21,192 @@ const format = logSerializer.getFormat();
 const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
 const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 
-parentPort.on('message', ([logLevel, ...args]) => {
+// copied from src/consts.ts - keep in sync
+const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
+const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', 'utf-8');
+const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', 'utf-8');
+
+const emptyBuffer = Buffer.alloc(0);
+const parseError = '?parse_err?';
+
+let contentFromLastBatch = Buffer.from(emptyBuffer);
+
+parentPort.once('message', () => {
+  // process.stderr.write('[[[' + contentFromLastBatch.toString('utf-8') + ']]]');
+  if (contentFromLastBatch.length) {
+    const { parsed } = parseContent(fullContent);
+    process.stdout.write(parsed);
+  }
+
+  process.stdin.emit('end');
+  // TODO: do it via Atomic and break;
+
+  process.stdout.writableEnded || process.stdout.end();
+  Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
+});
+
+(async () => {
+  for await (const buf of process.stdin) {
+    // process.stdout.write('Received buffer: \n' + buf.toString('utf-8'));
+    if (!buf.length || !process.stdout.writable) {
+      continue;
+    }
+
+    const fullContent = contentFromLastBatch.length
+      ? Buffer.concat([contentFromLastBatch, buf])
+      : buf;
+
+    let { parsed, rest } = parseContent(fullContent);
+    process.stdout.write(parsed);
+
+    while (
+      rest.indexOf(BUFFER_LOGS_START_SEPARATOR) > -1 &&
+      rest.indexOf(BUFFER_LOGS_END_SEPARATOR) > -1
+    ) {
+      ({ parsed, rest } = parseContent(rest));
+      process.stdout.write(parsed);
+    }
+
+    if (rest?.length) {
+      // process.stderr.write('[[[' + rest.toString('utf-8') + ']]]');
+      contentFromLastBatch = Buffer.from(rest?.length ? rest : emptyBuffer);
+    }
+    // Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
+  }
+
+  process.stderr.write('[[[ HERE ]]]');
+})();
+
+function parseContent(buf) {
+  // process.stderr.write('[[[' + buf.toString('utf-8') + ']]]');
+  const startIdx = buf.indexOf(BUFFER_LOGS_START_SEPARATOR);
+  const endIdx = buf.indexOf(BUFFER_LOGS_END_SEPARATOR, startIdx + 1);
+  // TODO: consider a few messages in the buffer
+
+  if (startIdx === -1 || endIdx === -1) {
+    process.stderr.write(
+      'Invalid buffer content. Missing start or end separator',
+    );
+    return { parsed: emptyBuffer, rest: emptyBuffer };
+  }
+
+  // TODO: parse log level differently bcz it's single-digit number
+
+  // const buffers = [];
+  const args = [];
+  let lastIdx = startIdx + BUFFER_LOGS_START_SEPARATOR.length;
+  const l = BUFFER_ARGS_SEPARATOR.length;
+  const lvl = buf.slice(lastIdx, lastIdx + 1);
+  lastIdx += 3;
+  // args.push(Number.parseInt(lvl.toString('utf-8'), 10));
+
+  while (lastIdx > -1 && lastIdx < endIdx) {
+    const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
+    // process.stderr.write('>>>>>>>>>>>>> nextIdx=' + nextIdx + '\n');
+    if (nextIdx === -1) {
+      const b = buf.slice(lastIdx, buf.length - l);
+      // buffers.push(b);
+      // process.stderr.write('>>>>>>>>>>>>> last buffer:' + b.toString('utf-8') + '\n');
+      args.push(deserializeBuffer(b));
+      break;
+    }
+    const b = buf.slice(lastIdx, nextIdx);
+    // process.stderr.write('>>>>>>>>>>>>> + buffer:' + b.toString('utf-8') + '\n');
+    // buffers.push(b);
+    args.push(deserializeBuffer(b));
+    lastIdx = nextIdx + l;
+  }
+
+  // process.stderr.write('-> length:' + args.length + '\n');
+  // process.stderr.write('-> args:', args.join(', ') + '\n');
+
   // serialization here so no extra CPU consumption in the main thread
-  const lvl = logLevel ?? logSerializer.severity;
   const bufferContent =
     format === 'text'
       ? logSerializer.serializeText(args, lvl)
       : logSerializer.serializeJSON(args, lvl);
 
-  if (process.stdout.writable) {
-    process.stdout.write(bufferContent);
-    Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
+  // process.stderr.write('-> bufferContent:' + bufferContent.toString('utf-8') + '\n');
+  return {
+    parsed: bufferContent,
+    rest:
+      endIdx + BUFFER_LOGS_END_SEPARATOR.length < buf.length
+        ? buf.slice(endIdx + BUFFER_LOGS_END_SEPARATOR.length)
+        : emptyBuffer,
+  };
+}
+
+function deserializeBuffer(buffer) {
+  // first buffer el is the type but do not take by index
+  const type = Number.parseInt(buffer.slice(0, 1).toString('utf-8'), 10);
+  // process.stderr.write('<<<<< + type[' + type + ']\n');
+
+  const buf = buffer.slice(1);
+  // process.stderr.write('<<<<< + buffer[' + buf.toString('utf-8') + ']\n');
+  const typeAsStr = getTypeByBuffer(type);
+  // process.stderr.write('<<<<< + typeAsStr[' + typeAsStr + ']\n');
+  if (typeAsStr !== 'object') {
+    return castBufferToPrimitive(buf.toString('utf-8'), typeAsStr);
   }
-});
+
+  try {
+    return deserialize(buf);
+  } catch (err) {
+    process.stderr.write('Error deserializing buffer:' + err.message + '\n');
+    return parseError;
+  }
+}
+
+function getTypeByBuffer(tbuf) {
+  switch (Number.parseInt(tbuf, 10)) {
+    case 0:
+      return 'string';
+    case 1:
+      return 'integer';
+    case 2:
+      return 'double';
+    case 3:
+      return 'object';
+    case 4:
+      return 'boolean';
+    case 5:
+      return 'undefined';
+    case 6:
+      return 'null';
+    default:
+      return 'object';
+  }
+}
+
+function castBufferToPrimitive(bufferAsStr, type) {
+  switch (type) {
+    case 'string':
+      return bufferAsStr;
+    case 'integer':
+      return Number.parseInt(bufferAsStr, 10);
+    case 'double':
+      return Number.parseFloat(bufferAsStr);
+    case 'boolean':
+      return bufferAsStr === 'true';
+    case 'undefined':
+      return undefined;
+    case 'null':
+      return null;
+    default:
+      return parseError;
+  }
+}
+
+// parentPort.on('message', ([logLevel, ...args]) => {
+//   // serialization here so no extra CPU consumption in the main thread
+//   const lvl = logLevel ?? logSerializer.severity;
+//   const bufferContent =
+//     format === 'text'
+//       ? logSerializer.serializeText(args, lvl)
+//       : logSerializer.serializeJSON(args, lvl);
+
+//   if (process.stdout.writable) {
+//     process.stdout.write(bufferContent);
+//     Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
+//   }
+// });

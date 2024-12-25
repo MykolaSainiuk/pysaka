@@ -1,4 +1,4 @@
-export class LogSerializer extends EventEmitter {
+export class LogSerializer extends EventEmitter<[never]> {
     constructor(loggerId: any, severity: any, encoding?: string, format?: string);
     loggerId: any;
     severity: any;

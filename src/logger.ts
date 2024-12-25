@@ -1,30 +1,35 @@
 import path from 'node:path';
 import { finished, pipeline } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
+import { serialize } from 'node:v8';
+import { Buffer } from 'node:buffer';
 
-import { DEFAULT_LOGGER_PARAMS, LOGGER_PREFIX } from './consts';
+import {
+  BUFFER_ARGS_SEPARATOR,
+  BUFFER_LOGS_END_SEPARATOR,
+  BUFFER_LOGS_START_SEPARATOR,
+  DEFAULT_LOGGER_PARAMS,
+  LOGGER_PREFIX,
+} from './consts';
 import { PrintFormatEnum, SeverityLevelEnum } from './enums';
 import type {
   DestinationType,
   IPysakaLogger,
   PysakaLoggerParams,
 } from './types';
-import { generateNumericId } from './util';
+import { generateNumericId, getTypeAsBuffer } from './util';
 
 // EventEmitter.defaultMaxListeners = 100;
 export class PysakaLogger implements IPysakaLogger {
   private destination: DestinationType;
   private severity: SeverityLevelEnum;
   private format: PrintFormatEnum;
-
+  private debugLogsOfLogger: boolean = false;
   private serializerEncoding: BufferEncoding = 'utf-8';
 
+  private isDestroyed: boolean = false;
   private loggerId: string;
   private logWorker: Worker;
-
-  private isDestroyed: boolean = false;
-  private debugLogsOfLogger: boolean = false;
-  private neverSpikeCPU: boolean = true;
 
   private sharedMemoryAsBuffer: SharedArrayBuffer;
   private atomicLogsLeftToWriteCountdown: Int32Array;
@@ -39,7 +44,7 @@ export class PysakaLogger implements IPysakaLogger {
     // TODO: singleton for now
     const paramsStringified = JSON.stringify(__params ?? {});
     if (PysakaLogger.__cache[paramsStringified]) {
-      PysakaLogger.__cache[paramsStringified].count++;
+      PysakaLogger.__cache[paramsStringified].count += 1;
       return PysakaLogger.__cache[paramsStringified].logger;
     }
     this.paramsStringified = paramsStringified;
@@ -59,7 +64,6 @@ export class PysakaLogger implements IPysakaLogger {
     this.severity = params.severity;
     this.format = params.format;
     this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
-    this.neverSpikeCPU = params.neverSpikeCPU ?? false;
 
     // Main thread
     this.sharedMemoryAsBuffer = new SharedArrayBuffer(4); // A shared buffer with space for one 32-bit integer
@@ -128,6 +132,7 @@ export class PysakaLogger implements IPysakaLogger {
       },
     });
     this.logWorker.unref();
+    this.logWorker.stderr.pipe(process.stderr);
 
     this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
@@ -135,6 +140,8 @@ export class PysakaLogger implements IPysakaLogger {
 
   private setupPipeline() {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
+    // this.logWorker.stdout.pipe(process.stdout, { end: false });
+
     pipeline(
       this.logWorker.stdout,
       this.destination,
@@ -170,33 +177,43 @@ export class PysakaLogger implements IPysakaLogger {
     if (logLevel < this.severity) {
       return this;
     }
+    // console.log('input:', logLevel, args);
 
-    const serializableArgs = new Array(1 + args.length);
-    serializableArgs[0] = logLevel;
+    // convert to Buffer
+    const buffers: Buffer[] = [
+      BUFFER_LOGS_START_SEPARATOR,
+      Buffer.from(String(logLevel)), // no need for type bcz it's always INT
+      BUFFER_ARGS_SEPARATOR,
+    ];
+    const l = args.length;
+    for (let i = 0; i < l; i++) {
+      const item =
+        // dunno why but Error isn't transferable by default via HTML structured clone algorithm
+        args[i] instanceof Error
+          ? {
+              message: args[i].message,
+              stack: args[i].stack,
+            }
+          : args[i];
 
-    for (let i = 0; i < args.length; i++) {
-      const item = args[i];
-      // dunno why but Error isn't transferable by default via HTML structured clone algorithm
-      if (item instanceof Error) {
-        serializableArgs[i + 1] = {
-          message: item.message,
-          stack: item.stack,
-          cause: item.cause,
-        };
-      } else {
-        serializableArgs[i + 1] = item;
-      }
+      const itemBuf =
+        item === Object(item)
+          ? serialize(item)
+          : Buffer.from(String(item), 'utf-8');
+      const type = getTypeAsBuffer(item);
+
+      buffers.push(type, itemBuf);
+      // console.log('buffer:', buffers[buffers.length - 1].toString('utf-8'));
+
+      i < l - 1 && buffers.push(BUFFER_ARGS_SEPARATOR);
     }
+    buffers.push(BUFFER_LOGS_END_SEPARATOR);
 
-    if (this.neverSpikeCPU) {
-      setImmediate(() => {
-        this.logWorker.postMessage(serializableArgs);
-        Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
-      });
-    } else {
-      this.logWorker.postMessage(serializableArgs);
-      Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
-    }
+    const bufToSend = Buffer.concat(buffers);
+
+    this.logWorker.stdin.write(bufToSend);
+
+    // Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
 
     return this;
   }
@@ -225,17 +242,28 @@ export class PysakaLogger implements IPysakaLogger {
     if (this.isDestroyed) return;
 
     // yeah, but it's a bit convoluted
-    await new Promise((resolve) => {
-      const intervalId = setInterval(() => {
-        if (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) <= 0) {
-          clearInterval(intervalId);
-          resolve(void 0);
-        }
-      }, 1);
-    });
+    // await new Promise((resolve) => {
+    //   const intervalId = setInterval(() => {
+    //     if (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) <= 0) {
+    //       clearInterval(intervalId);
+    //       resolve(void 0);
+    //     }
+    //   }, 1);
+    // });
 
-    this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
-    await finished(this.logWorker.stdin);
+    // signal worker to end async iter over read stream
+    this.logWorker.postMessage(-1);
+
+    await Promise.all([
+      // this.logWorker.stdin.end(),
+      // read all logs from worker first
+      finished(this.logWorker.stdout),
+      // write downstream the logs into destination
+      finished(this.logWorker.stdin),
+    ]);
+
+    // this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
+    // await finished(this.logWorker.stdin);
 
     // force "flush" under/into destination
     await Promise.all([
@@ -255,40 +283,47 @@ export class PysakaLogger implements IPysakaLogger {
 
     PysakaLogger.__cache[this.paramsStringified].count--;
     if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
-      delete PysakaLogger.__cache[this.paramsStringified].logger;
       // not the last instance
       return;
     }
+    delete PysakaLogger.__cache[this.paramsStringified];
+
+    // await new Promise((resolve) =>
+    //   this.neverSpikeCPU
+    //     ? setTimeout(() => this.gracefulShutdown().finally(resolve as never), 1)
+    //     : // bcz we must allow all neverSpikeCPU setImmediate callbacks to finish
+    //       this.gracefulShutdown().finally(resolve as never),
+    // );
     await new Promise((resolve) =>
-      this.neverSpikeCPU
-        ? setTimeout(() => this.gracefulShutdown().finally(resolve as never), 1)
-        : // bcz we must allow all neverSpikeCPU setImmediate callbacks to finish
-          this.gracefulShutdown().finally(resolve as never),
+      this.gracefulShutdown().finally(resolve as never),
     );
-    // await this.gracefulShutdown();
   }
 
   public closeSync() {
     if (this.isDestroyed) return;
-    if (this.neverSpikeCPU) {
-      this.debugLogsOfLogger &&
-        process.stdout.write(
-          `${LOGGER_PREFIX} Sync closing isn't allowed when neverSpikeCPU=true\n`,
-        );
-      return;
-    }
+    // if (this.neverSpikeCPU) {
+    //   this.debugLogsOfLogger &&
+    //     process.stdout.write(
+    //       `${LOGGER_PREFIX} Sync closing isn't allowed when neverSpikeCPU=true\n`,
+    //     );
+    //   return;
+    // }
 
     PysakaLogger.__cache[this.paramsStringified].count--;
     if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
-      delete PysakaLogger.__cache[this.paramsStringified].logger;
       // not the last instance
       return;
     }
+    delete PysakaLogger.__cache[this.paramsStringified];
 
-    // yep, scary
+    Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1); // make it 1
+    // signal worker to end async iter over read stream
+    this.logWorker.postMessage(-1);
+
+    // yep, ugly "sync" mode demands it
     while (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) > 0) {}
 
-    this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
+    // this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
     // force "flush" under/into destination
     this.destination.emit('drain');
 

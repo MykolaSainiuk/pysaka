@@ -4,24 +4,23 @@ const logger_1 = require("../src/logger");
 const logger1 = new logger_1.PysakaLogger({
     format: 'text',
     debugLogsOfLogger: true,
-    neverSpikeCPU: false,
 });
 logger1.log('-------------------->');
 const logger2 = new logger_1.PysakaLogger({
     format: 'json',
     debugLogsOfLogger: true,
-    neverSpikeCPU: false,
 });
 logger2.warn('Here is another one!!!');
 logger2.closeSync();
-logger1.error('some text', 'Hello, world!', {
+logger1.error('some text', 17, null, [1, true], {
     foo: 'bar',
-    'some extra': { a: false, b: [1, 2] },
+    'some extra': { a: false, b: [3, 3] },
 });
 logger1.log('<--------------------');
-let intervalId = setTimeout(() => { }, 1e7);
-logger1.close().finally(() => {
-    clearInterval(intervalId);
-    process.stdout.write('All done but process.stdout is still available!\n');
+const tid = setTimeout(() => {
+    logger1.close().finally(() => {
+        clearTimeout(tid);
+        process.stdout.write('All done but process.stdout is still available!\n');
+    });
 });
 //# sourceMappingURL=debug.js.map

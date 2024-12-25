@@ -8,7 +8,6 @@ export type PysakaLoggerParams = {
     format?: PrintFormatEnum;
     name?: string;
     debugLogsOfLogger?: boolean;
-    neverSpikeCPU?: boolean;
 };
 export interface IPysakaLogger {
     log(...args: any[]): this;

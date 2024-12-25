@@ -3,12 +3,11 @@ export declare class PysakaLogger implements IPysakaLogger {
     private destination;
     private severity;
     private format;
+    private debugLogsOfLogger;
     private serializerEncoding;
+    private isDestroyed;
     private loggerId;
     private logWorker;
-    private isDestroyed;
-    private debugLogsOfLogger;
-    private neverSpikeCPU;
     private sharedMemoryAsBuffer;
     private atomicLogsLeftToWriteCountdown;
     private paramsStringified;
