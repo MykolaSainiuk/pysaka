@@ -7,7 +7,7 @@ var SeverityLevelEnum;
     SeverityLevelEnum[SeverityLevelEnum["INFO"] = 1] = "INFO";
     SeverityLevelEnum[SeverityLevelEnum["WARN"] = 2] = "WARN";
     SeverityLevelEnum[SeverityLevelEnum["ERROR"] = 3] = "ERROR";
-    SeverityLevelEnum[SeverityLevelEnum["FATAl"] = 4] = "FATAl";
+    SeverityLevelEnum[SeverityLevelEnum["FATAL"] = 4] = "FATAL";
 })(SeverityLevelEnum || (exports.SeverityLevelEnum = SeverityLevelEnum = {}));
 exports.SeverityLevelValueToKey = {
     0: 'DEBUG',

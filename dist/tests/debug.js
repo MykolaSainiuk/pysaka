@@ -22,5 +22,6 @@ logger1.log('<--------------------');
 let intervalId = setTimeout(() => { }, 1e7);
 logger1.close().finally(() => {
     clearInterval(intervalId);
+    process.stdout.write('All done but process.stdout is still available!\n');
 });
 //# sourceMappingURL=debug.js.map

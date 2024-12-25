@@ -47,7 +47,7 @@ Such apparent things:
     // or sync way
     logger.closeSync(); // only if neverSpikeCPU is false
 
-## Key method logger.write()
+### Key method is logger.write()
 
     logger<write>('Hello world!');
 or
@@ -57,9 +57,11 @@ or
 
     logger<write>('Hello world!', { some: 'data' });
 
-you are not obliged to specify the first argument as a string however it's advised to do so, especially if you use 'text' format (for optimal formatting).
+<ins>Note</ins>: you are not obliged to specify the first argument as a string however it's advised to do so, especially if you use 'text' format (for optimal formatting).
 
-where <write> is any of the following methods:
+## Available methods
+
+Where <write> is any of the following methods:
 
     logger.debug('Hello world!');
     logger.info('Hello world!');
@@ -70,7 +72,7 @@ where <write> is any of the following methods:
 
 Voilà !
 
-## About speed
+## Speed
 
 This is not BLAZINGLY fast logger because simply because is not key characteristic (and you code in Node.js, come on). 
 You should not care much about the speed of messages logging, however you must care about performance of your main process which executes an important business logic.
@@ -78,7 +80,7 @@ You should not care much about the speed of messages logging, however you must c
 Pysaka does not eat/steal much CPU time of your main thread of the main process. It delegates as much as possible (even serialization of a log message) to the separate worker thread (albeit, postMessage() copying takes its price still). It utilizes Node.js Streams to the full, because it's cheap from CPU & RAM perspective (and their are awesome in Node.js).
 You are more than welcome to review the code base (it's tiny).
 
-### Features
+### Setup
 
 In order to create an instance of the logger: `new PysakaLogger();`
 hence the constructor expects such object as a param
@@ -111,4 +113,5 @@ In details:
 - `neverSpikeCPU` - a flag which de-prioritizes logger work (lower it) in comparison with other user code. It utilizes never busy setImmediate stage of EventLoop, ergo it has minimal affect on the main process (being executed when CPU is not busy much).
 
 ### Does not do what I want
+
 So open an issue on github and I will code it for you if it makes sense.

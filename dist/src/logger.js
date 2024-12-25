@@ -73,7 +73,7 @@ class PysakaLogger {
         return this.write(enums_1.SeverityLevelEnum.DEBUG, ...args);
     }
     fatal(...args) {
-        return this.write(enums_1.SeverityLevelEnum.FATAl, ...args);
+        return this.write(enums_1.SeverityLevelEnum.FATAL, ...args);
     }
     init() {
         this.initWorker();

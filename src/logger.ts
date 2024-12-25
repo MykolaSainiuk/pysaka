@@ -96,7 +96,7 @@ export class PysakaLogger implements IPysakaLogger {
     return this.write(SeverityLevelEnum.DEBUG, ...args);
   }
   public fatal(...args: any[]): this {
-    return this.write(SeverityLevelEnum.FATAl, ...args);
+    return this.write(SeverityLevelEnum.FATAL, ...args);
   }
 
   // private methods
