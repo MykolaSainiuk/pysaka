@@ -15,26 +15,19 @@ const logSerializer = new LogSerializer(
 );
 const format = logSerializer.getFormat();
 
-const sharedBuffer = workerData.sharedBuffer;
-const sharedArray = new Int32Array(sharedBuffer);
+const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
+const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 
 parentPort.on('message', ([logLevel, ...args]) => {
-  if (args?.[0] === '__DONE') return;
-
   // serialization here so no extra CPU consumption in the main thread
+  const lvl = logLevel ?? logSerializer.severity;
   const bufferContent =
     format === 'text'
-      ? logSerializer.serializeText(args, logLevel ?? logSerializer.severity)
-      : logSerializer.serializeJSON(args);
+      ? logSerializer.serializeText(args, lvl)
+      : logSerializer.serializeJSON(args, lvl);
 
   if (process.stdout.writable) {
     process.stdout.write(bufferContent);
-    Atomics.sub(sharedArray, 0, 1);
+    Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
   }
-  // // in case of long operation
-  // if (workerData.done) {
-  //   process.stdout.emit('finish');
-  //   process.stdout.end();
-  //   // parentPort.close();
-  // }
 });

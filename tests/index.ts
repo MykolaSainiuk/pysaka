@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import { afterEach, test } from 'node:test';
 
-import { PysakaLogger } from '../logger';
+import { PysakaLogger } from '../src/logger';
 
 // Sorry world, it's damn Node.js test runner: otherwise it's not printing anything
 afterEach((ctx, done) => {
@@ -26,7 +26,6 @@ test('Log msg', async (t) => {
 test('Log smth more (JSON)', async (t) => {
   const logger = new PysakaLogger({
     format: 'json' as any,
-    fallbackSupport: false,
   });
   logger.log('some json', 'Hello, world!', {
     foo: 'bar',
@@ -37,7 +36,6 @@ test('Log smth more (JSON)', async (t) => {
 test('Log smth more (TEXT)', async (t) => {
   const logger = new PysakaLogger({
     format: 'text' as any,
-    fallbackSupport: false,
     severity: 'debug' as any,
   });
   logger.warn('>--------------------');
@@ -55,7 +53,6 @@ test('Log smth more (TEXT)', async (t) => {
 test('Log some err (TEXT)', async (t) => {
   const logger = new PysakaLogger({
     format: 'text' as any,
-    fallbackSupport: false,
   });
   logger.log('>--------------------');
   logger.error('shit happened', new Error('indeed happen'));
@@ -64,75 +61,13 @@ test('Log some err (TEXT)', async (t) => {
 });
 
 test.only('Log smth more with fallback support', async (t) => {
-  const logger = new PysakaLogger({
-    fallbackSupport: true,
-  });
+  const logger = new PysakaLogger();
   logger.log('some log info', 'Hello, world!');
   await logger.close();
 });
 
-test('Log to fallback stream: no logs lost', async (t) => {
-  const logger = new PysakaLogger({
-    fallbackSupport: true,
-  });
-
-  logger.log('-------------------->');
-
-  let i = 0;
-  await new Promise((resolve) => {
-    const id = setInterval(() => {
-      logger.log('step: ', i, '    ' + '*'.repeat(1e3));
-      i++;
-      if (i === 10) {
-        process.stdout.cork();
-      }
-      if (i === 70) {
-        process.stdout.uncork();
-      }
-      if (i === 90) {
-        clearInterval(id);
-        resolve(null);
-      }
-    }, 50);
-  });
-
-  await logger.close();
-});
-
-test('Log to fallback stream: no logs lost. Unavailability twice', async (t) => {
-  const logger = new PysakaLogger();
-
-  logger.log('-------------------->');
-
-  let i = 0;
-  await new Promise((resolve) => {
-    const id = setInterval(() => {
-      logger.log('step: ', i, '    ' + '*'.repeat(1e3));
-      i++;
-      if (i === 10) {
-        process.stdout.cork();
-      }
-      if (i === 70) {
-        process.stdout.uncork();
-      }
-      if (i === 110) {
-        process.stdout.cork();
-      }
-      if (i === 170) {
-        process.stdout.uncork();
-      }
-      if (i === 180) {
-        clearInterval(id);
-        resolve(null);
-      }
-    }, 50);
-  });
-
-  await logger.close();
-});
-
 test('No fallback stream: logs lost bcz no fallback support', async (t) => {
-  const logger = new PysakaLogger({ fallbackSupport: false });
+  const logger = new PysakaLogger();
 
   logger.log('-------------------->');
 
@@ -188,7 +123,6 @@ test('No fallback stream: logs lost bcz no fallback support', async (t) => {
 test('Log smth to file', async (t) => {
   const logger = new PysakaLogger({
     format: 'json' as any,
-    fallbackSupport: false,
     destination: fs.createWriteStream('./__temp/test.log'),
   });
   logger.log('some json', 'Hello, world!', {

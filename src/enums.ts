@@ -3,7 +3,7 @@ export enum SeverityLevelEnum {
   INFO = 1,
   WARN = 2,
   ERROR = 3,
-  FATAl = 4,
+  FATAL = 4,
 }
 export const SeverityLevelValueToKey = {
   0: 'DEBUG',

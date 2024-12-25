@@ -6,12 +6,10 @@ export type DestinationType = Writable;
 
 export type PysakaLoggerParams = {
   destination?: DestinationType;
-  fallbackSupport?: boolean;
   severity?: SeverityLevelEnum;
   format?: PrintFormatEnum;
   name?: string;
   debugLogsOfLogger?: boolean;
-  tempDirPath?: string;
   neverSpikeCPU?: boolean;
 };
 
