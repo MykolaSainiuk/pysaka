@@ -10,8 +10,6 @@ const format = logSerializer.getFormat();
 const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
 const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 parentPort.on('message', ([logLevel, ...args]) => {
-    if (args?.[0] === '__KILL_THE_WORKER')
-        return;
     const lvl = logLevel ?? logSerializer.severity;
     const bufferContent = format === 'text'
         ? logSerializer.serializeText(args, lvl)

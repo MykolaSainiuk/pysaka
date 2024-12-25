@@ -19,8 +19,6 @@ const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
 const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 
 parentPort.on('message', ([logLevel, ...args]) => {
-  if (args?.[0] === '__KILL_THE_WORKER') return;
-
   // serialization here so no extra CPU consumption in the main thread
   const lvl = logLevel ?? logSerializer.severity;
   const bufferContent =
@@ -32,10 +30,4 @@ parentPort.on('message', ([logLevel, ...args]) => {
     process.stdout.write(bufferContent);
     Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
   }
-  // // in case of long operation
-  // if (workerData.done) {
-  //   process.stdout.emit('finish');
-  //   process.stdout.end();
-  //   // parentPort.close();
-  // }
 });

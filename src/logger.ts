@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { Duplex, PassThrough, pipeline } from 'node:stream';
+import { finished, pipeline } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
 
 import { DEFAULT_LOGGER_PARAMS, LOGGER_PREFIX } from './consts';
@@ -19,13 +19,9 @@ export class PysakaLogger implements IPysakaLogger {
 
   private serializerEncoding: BufferEncoding = 'utf-8';
 
-  private proxyOutputSteam: Duplex;
-  private proxyOutputSteamBufferSize: number; // in bytes
-
   private loggerId: string;
   private logWorker: Worker;
 
-  private streamsToDestroy = [];
   private isDestroyed: boolean = false;
   private debugLogsOfLogger: boolean = false;
   private neverSpikeCPU: boolean = true;
@@ -34,7 +30,7 @@ export class PysakaLogger implements IPysakaLogger {
   private atomicLogsLeftToWriteCountdown: Int32Array;
   private paramsStringified: string;
 
-  private static __singleInstance: Record<
+  private static __cache: Record<
     string,
     { logger: PysakaLogger; count: number }
   > = {};
@@ -42,12 +38,12 @@ export class PysakaLogger implements IPysakaLogger {
   constructor(__params?: PysakaLoggerParams) {
     // TODO: singleton for now
     const paramsStringified = JSON.stringify(__params ?? {});
-    if (PysakaLogger.__singleInstance[paramsStringified]) {
-      PysakaLogger.__singleInstance[paramsStringified].count++;
-      return PysakaLogger.__singleInstance[paramsStringified].logger;
+    if (PysakaLogger.__cache[paramsStringified]) {
+      PysakaLogger.__cache[paramsStringified].count++;
+      return PysakaLogger.__cache[paramsStringified].logger;
     }
     this.paramsStringified = paramsStringified;
-    PysakaLogger.__singleInstance[paramsStringified] = {
+    PysakaLogger.__cache[paramsStringified] = {
       logger: this,
       count: 1,
     };
@@ -69,17 +65,10 @@ export class PysakaLogger implements IPysakaLogger {
     this.sharedMemoryAsBuffer = new SharedArrayBuffer(4); // A shared buffer with space for one 32-bit integer
     this.atomicLogsLeftToWriteCountdown = new Int32Array(
       this.sharedMemoryAsBuffer,
-    ); // Create a typed array view
+    ); // a typed array view
     Atomics.store(this.atomicLogsLeftToWriteCountdown, 0, 0);
 
-    // let lastValue = -100;
-    // setInterval(() => {
-    //   // const newValue = +this.sharedArray[0];
-    //   const newValue = Atomics.load(this.sharedArray, 0);
-    //   if (newValue === lastValue) return;
-    //   process.stdout.write('New value:' + newValue.toString() + '\n');
-    //   lastValue = newValue;
-    // }, 1); // Print the value every 100 milliseconds
+    process.once('exit', this.gracefulShutdown.bind(this));
 
     try {
       this.init();
@@ -88,8 +77,6 @@ export class PysakaLogger implements IPysakaLogger {
       this.destructor();
       throw new Error(`${LOGGER_PREFIX} Failed to initialize logger`);
     }
-
-    process.once('exit', this.gracefulShutdown.bind(this));
   }
 
   // public methods
@@ -115,7 +102,7 @@ export class PysakaLogger implements IPysakaLogger {
   // private methods
   private init() {
     this.initWorker();
-    this.initOutputStream();
+    this.setupPipeline();
 
     this.debugLogsOfLogger &&
       process.stdout.write(`${LOGGER_PREFIX} Logger is initialized\n`);
@@ -146,50 +133,37 @@ export class PysakaLogger implements IPysakaLogger {
       process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
   }
 
-  private initOutputStream() {
-    this.proxyOutputSteamBufferSize = 2e5; // 2 MB
-    this.proxyOutputSteam = new PassThrough({
-      highWaterMark: this.proxyOutputSteamBufferSize,
-    });
-
+  private setupPipeline() {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
-    const s = pipeline(this.logWorker.stdout, this.proxyOutputSteam, () => {});
-    this.streamsToDestroy.push(s);
-
-    this.pipeOutputToDestination();
+    pipeline(
+      this.logWorker.stdout,
+      this.destination,
+      // this.handleStreamError.bind(this),
+      { end: false },
+    )
+      .then(
+        () =>
+          this.debugLogsOfLogger &&
+          process.stdout.write(
+            `${LOGGER_PREFIX} Pipeline logWorker.stdout->destination had no errors\n`,
+          ),
+      )
+      .catch(this.handleStreamError.bind(this));
 
     this.debugLogsOfLogger &&
       process.stdout.write(
-        `${LOGGER_PREFIX} Logger's output stream is piped\n`,
+        `${LOGGER_PREFIX} Logger's stream's pipeline is ready\n`,
       );
   }
 
-  private async pipeOutputToDestination() {
-    this.proxyOutputSteam.unpipe(this.destination); // just in case
-
-    this.proxyOutputSteam.once(
-      'error',
-      this.handleOutputStreamError.bind(this),
-    );
-    this.destination.once('error', this.handleOutputStreamError.bind(this));
-
-    const s = this.proxyOutputSteam.pipe(this.destination, { end: false });
-    this.streamsToDestroy.push(s);
-  }
-
-  private handleOutputStreamError(err) {
+  private handleStreamError(err) {
     if (this.isDestroyed) return;
-
-    if (!this.destination.writableEnded) {
-      process.stderr.write(`${LOGGER_PREFIX} Destination is not writable\n}`);
-      this.gracefulShutdown();
-      return;
+    if (err) {
+      process.stderr.write(
+        `${LOGGER_PREFIX} Pipeline logWorker.stdout->destination has failed\n`,
+      );
+      process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
     }
-
-    process.stderr.write(
-      `${LOGGER_PREFIX} Pipeline proxyOutputSteam->destination failed\n`,
-    );
-    process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
   }
 
   private write(logLevel: SeverityLevelEnum, ...args: any[]): this {
@@ -232,28 +206,12 @@ export class PysakaLogger implements IPysakaLogger {
     this.isDestroyed = true;
     // drop Singleton cached instance
     this.paramsStringified &&
-      delete PysakaLogger.__singleInstance[this.paramsStringified];
-
-    // do all possible unpipes
-    this.logWorker.stdout && this.logWorker.stdout.unpipe();
-    this.proxyOutputSteam && this.proxyOutputSteam.unpipe();
-
-    // pipe results as streams to be cleaned
-    this.streamsToDestroy?.forEach((s) => {
-      s.removeAllListeners();
-      s.destroyed || s.destroy();
-    });
+      delete PysakaLogger.__cache[this.paramsStringified];
 
     if (this.logWorker) {
       // this.logWorker.unref();
       this.logWorker.removeAllListeners();
       this.logWorker.terminate();
-    }
-
-    if (this.proxyOutputSteam) {
-      this.proxyOutputSteam.end();
-      this.proxyOutputSteam.removeAllListeners();
-      this.proxyOutputSteam.destroy();
     }
 
     // process.stdout.write(
@@ -266,39 +224,27 @@ export class PysakaLogger implements IPysakaLogger {
   public async gracefulShutdown() {
     if (this.isDestroyed) return;
 
-    this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
-
-    // yeah, but it's a bit more complicated
+    // yeah, but it's a bit convoluted
     await new Promise((resolve) => {
       const intervalId = setInterval(() => {
         if (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) <= 0) {
           clearInterval(intervalId);
-          resolve(null);
+          resolve(void 0);
         }
       }, 1);
     });
 
-    await Promise.all([
-      new Promise((resolve) => this.logWorker.stdin.once('drain', resolve)),
-      (() => {
-        setTimeout(() => this.logWorker.stdin.emit('drain'), 0);
-      })(),
-    ]);
-    this.streamsToDestroy?.forEach((s) => {
-      // s.removeAllListeners();
-      s.emit('drain');
-    });
-    await Promise.all([
-      new Promise((resolve) => this.proxyOutputSteam.once('drain', resolve)),
-      (() => {
-        setTimeout(() => this.proxyOutputSteam.emit('drain'), 0);
-      })(),
-    ]);
+    this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
+    await finished(this.logWorker.stdin);
+
+    // force "flush" under/into destination
     await Promise.all([
       new Promise((resolve) => this.destination.once('drain', resolve)),
-      (() => {
-        setTimeout(() => this.destination.emit('drain'), 0);
-      })(),
+      // new Promise((resolve) => {
+      //   this.destination.emit('drain');
+      //   resolve(void 0);
+      // }),
+      setTimeout(() => this.destination.emit('drain'), 1),
     ]);
 
     this.destructor();
@@ -307,9 +253,9 @@ export class PysakaLogger implements IPysakaLogger {
   public async close() {
     if (this.isDestroyed) return;
 
-    PysakaLogger.__singleInstance[this.paramsStringified].count--;
-    if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
-      delete PysakaLogger.__singleInstance[this.paramsStringified].logger;
+    PysakaLogger.__cache[this.paramsStringified].count--;
+    if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
+      delete PysakaLogger.__cache[this.paramsStringified].logger;
       // not the last instance
       return;
     }
@@ -332,27 +278,22 @@ export class PysakaLogger implements IPysakaLogger {
       return;
     }
 
-    PysakaLogger.__singleInstance[this.paramsStringified].count--;
-    if (PysakaLogger.__singleInstance[this.paramsStringified].count > 0) {
-      delete PysakaLogger.__singleInstance[this.paramsStringified].logger;
+    PysakaLogger.__cache[this.paramsStringified].count--;
+    if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
+      delete PysakaLogger.__cache[this.paramsStringified].logger;
       // not the last instance
       return;
     }
 
-    this.logWorker.postMessage([0, '__KILL_THE_WORKER']);
-
-    // yeah, but it's a bit more complicated
+    // yep, scary
     while (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) > 0) {}
 
-    this.logWorker.stdin.emit('drain');
-    this.streamsToDestroy?.forEach((s) => {
-      // s.removeAllListeners();
-      s.emit('drain');
-    });
-    this.proxyOutputSteam.emit('drain');
+    this.logWorker.stdin.writableEnded || this.logWorker.stdin.end();
+    // force "flush" under/into destination
     this.destination.emit('drain');
 
-    setImmediate(() => this.destructor());
+    // bcz .end() and .emit('drain') are not synchronous
+    setTimeout(() => this.destructor(), 1);
   }
 
   // TODO: implement
