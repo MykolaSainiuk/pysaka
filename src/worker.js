@@ -56,6 +56,12 @@ parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
 });
 
 (async () => {
+  const intervalId = setInterval(() => {
+    process.stdout.writableCorked
+      ? process.stdout.cork()
+      : process.stdout.uncork();
+  }, 10);
+
   for await (const buf of process.stdin) {
     // process.stdout.write('Received buffer: \n' + buf.toString('utf-8'));
     if (!buf.length || !process.stdout.writable) {
@@ -82,6 +88,8 @@ parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
       contentFromLastBatch = Buffer.from(rest?.length ? rest : emptyBuffer);
     }
   }
+
+  clearInterval(intervalId);
 })();
 
 function parseContent(buf) {
