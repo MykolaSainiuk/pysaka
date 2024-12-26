@@ -66,6 +66,8 @@ to be able to import like this
 
     import logger from './util/logger';
 
+<ins>Price</ins>: each new instance of PysakaLogger creates a new Worker thread, so it's better to have only few unique ones and reuse wisely, like we did with RAM in 90s. 
+
 ### Why close?
 
 This method
