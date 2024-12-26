@@ -16,26 +16,13 @@ class PysakaLogger {
     destination;
     severity;
     format;
-    debugLogsOfLogger = false;
+    prefix;
+    internalLogs = false;
     serializerEncoding = 'utf-8';
     isDestroyed = false;
     loggerId;
     logWorker;
-    sharedMemoryAsBuffer;
-    atomicLogsLeftToWriteCountdown;
-    paramsStringified;
-    static __cache = {};
     constructor(__params) {
-        const paramsStringified = JSON.stringify(__params ?? {});
-        if (PysakaLogger.__cache[paramsStringified]) {
-            PysakaLogger.__cache[paramsStringified].count += 1;
-            return PysakaLogger.__cache[paramsStringified].logger;
-        }
-        this.paramsStringified = paramsStringified;
-        PysakaLogger.__cache[paramsStringified] = {
-            logger: this,
-            count: 1,
-        };
         const params = { ...consts_1.DEFAULT_LOGGER_PARAMS, ...__params };
         this.destination = params.destination;
         if (!this.destination.writable) {
@@ -43,11 +30,13 @@ class PysakaLogger {
         }
         this.severity = params.severity;
         this.format = params.format;
-        this.debugLogsOfLogger = params.debugLogsOfLogger ?? false;
-        this.sharedMemoryAsBuffer = new SharedArrayBuffer(4);
-        this.atomicLogsLeftToWriteCountdown = new Int32Array(this.sharedMemoryAsBuffer);
-        Atomics.store(this.atomicLogsLeftToWriteCountdown, 0, 0);
-        process.once('exit', this.gracefulShutdown.bind(this));
+        this.prefix = params.prefix;
+        this.internalLogs = params.internalLogs ?? false;
+        consts_1.EXIT_SIGNALS.forEach((event) => process.once(event, async (code) => {
+            await this.gracefulShutdown();
+            process.exit(Number.isNaN(code) ? 0 : code);
+        }));
+        process.once('exit', this.destructor.bind(this));
         try {
             this.init();
         }
@@ -78,7 +67,7 @@ class PysakaLogger {
     init() {
         this.initWorker();
         this.setupPipeline();
-        this.debugLogsOfLogger &&
+        this.internalLogs &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is initialized\n`);
     }
     initWorker() {
@@ -95,20 +84,19 @@ class PysakaLogger {
                 severity: this.severity,
                 encoding: this.serializerEncoding,
                 format: this.format,
-                sharedMemoryAsBuffer: this.sharedMemoryAsBuffer,
+                prefix: this.prefix,
             },
         });
         this.logWorker.unref();
-        this.logWorker.stderr.pipe(process.stderr);
-        this.debugLogsOfLogger &&
+        this.internalLogs &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's worker is initialized\n`);
     }
     setupPipeline() {
         (0, promises_1.pipeline)(this.logWorker.stdout, this.destination, { end: false })
-            .then(() => this.debugLogsOfLogger &&
+            .then(() => this.internalLogs &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Pipeline logWorker.stdout->destination had no errors\n`))
             .catch(this.handleStreamError.bind(this));
-        this.debugLogsOfLogger &&
+        this.internalLogs &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's stream's pipeline is ready\n`);
     }
     handleStreamError(err) {
@@ -152,21 +140,20 @@ class PysakaLogger {
         if (this.isDestroyed)
             return;
         this.isDestroyed = true;
-        this.paramsStringified &&
-            delete PysakaLogger.__cache[this.paramsStringified];
         if (this.logWorker) {
             this.logWorker.removeAllListeners();
             this.logWorker.terminate();
         }
-        this.debugLogsOfLogger &&
+        this.internalLogs &&
             process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is shut down\n`);
     }
     async gracefulShutdown() {
         if (this.isDestroyed)
             return;
-        this.logWorker.postMessage(-1);
+        this.logWorker.postMessage({ end: true });
+        await (0, promises_1.finished)(this.logWorker.stdout);
         await Promise.all([
-            (0, promises_1.finished)(this.logWorker.stdout),
+            this.logWorker.stdin.end(),
             (0, promises_1.finished)(this.logWorker.stdin),
         ]);
         await Promise.all([
@@ -178,28 +165,21 @@ class PysakaLogger {
     async close() {
         if (this.isDestroyed)
             return;
-        PysakaLogger.__cache[this.paramsStringified].count--;
-        if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
-            return;
-        }
-        delete PysakaLogger.__cache[this.paramsStringified];
         await new Promise((resolve) => this.gracefulShutdown().finally(resolve));
     }
-    closeSync() {
-        if (this.isDestroyed)
-            return;
-        PysakaLogger.__cache[this.paramsStringified].count--;
-        if (PysakaLogger.__cache[this.paramsStringified].count > 0) {
-            return;
-        }
-        delete PysakaLogger.__cache[this.paramsStringified];
-        Atomics.add(this.atomicLogsLeftToWriteCountdown, 0, 1);
-        this.logWorker.postMessage(-1);
-        while (Atomics.load(this.atomicLogsLeftToWriteCountdown, 0) > 0) { }
-        this.destination.emit('drain');
-        setTimeout(() => this.destructor(), 1);
+    setSeverity(severity) {
+        this.severity = severity;
+        this.logWorker.postMessage({ severity });
     }
-    child() {
+    setFormat(format) {
+        this.format = format;
+        this.logWorker.postMessage({ format });
+    }
+    setPrefix(prefix) {
+        this.prefix = prefix;
+        this.logWorker.postMessage({ prefix });
+    }
+    child(newPrefix) {
         return this;
     }
 }

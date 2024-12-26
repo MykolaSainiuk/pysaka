@@ -13,3 +13,4 @@ export declare const BUFFER_OBJECT_TYPE: Buffer;
 export declare const BUFFER_BOOLEAN_TYPE: Buffer;
 export declare const BUFFER_UNDEFINED_TYPE: Buffer;
 export declare const BUFFER_NULL_TYPE: Buffer;
+export declare const EXIT_SIGNALS: string[];

@@ -36,32 +36,52 @@ Such apparent things:
 
     const logger = new PysakaLogger();
 
+    logger.log('Hello world!');
+
     // log your stuff
     logger.info('some text', 'another text + json later', {
         foo: 'bar',
         'some extra': { a: false, b: [1, 2] },
     });
 
+    logger.error(new Error('Some error'));
+
     // in the end, please, close it - otherwise it will prevent the main process to be closed
-    await logger.close(); // recommended way
-    // or sync way
-    logger.closeSync(); // only if neverSpikeCPU is false
-
-### Key method is logger.write()
-
-    logger<write>('Hello world!');
-or
-
-    logger<write>('Hello world!', 'error message');
-or
-
-    logger<write>('Hello world!', { some: 'data' });
+    await logger.close();
 
 <ins>Note</ins>: you are not obliged to specify the first argument as a string however it's advised to do so, especially if you use 'text' format (for optimal formatting).
+Why? Bcz the very first argument will be considered as a message, and it's better to have it as a string, others - data or errors, depends on severity level.
 
-### How use thru modules?
+### How to import?
 
-There are few ways how to approach a logger usage
+You can get `PysakaLogger` consturctor, create your own instance of the logger and use it in your project. In such case it's much suggested to create a separate `util/logger.ts` file and export the logger instance from there for convenience.
+
+    import PysakaLogger from 'pysaka';
+
+    const logger = new PysakaLogger();
+
+    export default logger;
+
+to be able to import like this
+
+    import logger from './util/logger';
+
+### Why close?
+
+This method
+
+    await logger.close();
+
+performs graceful shutdown of the logger: it flushes the buffer and closes the streams. It's important to call it in the end of the main process execution, otherwise the main process may hang or/and logs are lost in its way to destination stream.
+
+    process.once('beforeExit', async () => {
+        // any of your logic in order to gracefully shutdown the app
+        await logger.close();
+    });
+
+In case if you brutally kill the process (e.g. `process.exit(1)`), the logger will catch it and perform the resources cleanup (buy calling a destructor), however unflushed logs can be lost in such case.
+
+In any other case of kill signals or uncaught exceptions, the logger will catch them and perform the graceful shutdown with guaranteed logs delivery.
 
 ## Available methods
 
@@ -84,7 +104,7 @@ You should not care much about the speed of messages logging, however you must c
 Pysaka does not eat/steal much CPU time of your main thread of the main process. It delegates as much as possible (even serialization of a log message) to the separate worker thread (albeit, postMessage() copying takes its price still). It utilizes Node.js Streams to the full, because it's cheap from CPU & RAM perspective (and their are awesome in Node.js).
 You are more than welcome to review the code base (it's tiny).
 
-### Setup
+## Setup
 
 In order to create an instance of the logger: `new PysakaLogger();`
 hence the constructor expects such object as a param
@@ -93,29 +113,24 @@ hence the constructor expects such object as a param
         destination?: DestinationType;
         severity?: SeverityLevelEnum;
         format?: PrintFormatEnum;
-        name?: string;
-        debugLogsOfLogger?: boolean;
-        neverSpikeCPU?: boolean;
+        prefix?: string;
+        internalLogs?: boolean;
     };
 
 In details:
 
-- `destination` - must be Writable stream! Mostly it's process.stdout, or file descriptor with write access, socket...
-
-- `fallbackSupport` - flag which identifies that logs has to be backup-ed up in case if destination is not available temporarily. It preserves logs in the temporary file until your main code repairs the destination. Useful much if `destination` is Socket which points to another unstable server.
+- `destination` - must be Writable stream! Mostly it's process.stdout, or file descriptor with write access, net socket or custom Writable stream. Default is process.stdout.
 
 - `severity` - aka a log level: 0 - debug, 1 - info, 2 - warn, 3 - error, 4 - fatal
 
-- `format` - two options: "json" or "text".
-  - JSON - for post-reexporting to monitoring tools
-  - text - for human readability, with colors.
+- `format` - two options: "json" or "text"
+  - JSON - for post-reexporting into monitoring tools (default format)
+  - text - for human readability, with colors
 
-- `name` - a name of the logger. optional
+- `prefix` - a name of the logger (optional): will be pre-inserted for each log message. Default is empty string.
 
-- `debugLogsOfLogger` - a flag which identifies if the debug logs of the logger itself should be printed. Internal usage mostly
+- `internalLogs` - a flag which identifies if the debug logs of the logger itself should be printed. Internal usage mostly
 
-- `neverSpikeCPU` - a flag which de-prioritizes logger work (lower it) in comparison with other user code. It utilizes never busy setImmediate stage of EventLoop, ergo it has minimal affect on the main process (being executed when CPU is not busy much).
-
-### Does not do what I want
+## Does not do what I want
 
 So open an issue on github and I will code it for you if it makes sense.

@@ -13,7 +13,15 @@ var __createBinding = (this && this.__createBinding) || (Object.create ? (functi
 var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.jsonLogger = exports.textLogger = void 0;
+const enums_1 = require("./enums");
+const logger_1 = __importDefault(require("./logger"));
 __exportStar(require("./enums"), exports);
 __exportStar(require("./logger"), exports);
+exports.textLogger = new logger_1.default({ format: enums_1.PrintFormatEnum.TEXT });
+exports.jsonLogger = new logger_1.default({ format: enums_1.PrintFormatEnum.JSON });
 //# sourceMappingURL=index.js.map

@@ -5,7 +5,8 @@ export const DEFAULT_LOGGER_PARAMS: PysakaLoggerParams = {
   destination: process.stdout,
   severity: SeverityLevelEnum.INFO,
   format: PrintFormatEnum.JSON,
-  debugLogsOfLogger: false,
+  internalLogs: false,
+  prefix: '',
 };
 
 export const LOGGER_PREFIX = '[Pysaka]';
@@ -24,3 +25,21 @@ export const BUFFER_UNDEFINED_TYPE = Buffer.from('5');
 export const BUFFER_NULL_TYPE = Buffer.from('6');
 // export const BUFFER_BIGINT_TYPE = Buffer.from('7');
 // export const BUFFER_SYMBOL_TYPE = Buffer.from('8');
+
+export const EXIT_SIGNALS = [
+  'beforeExit',
+  'uncaughtException',
+  'unhandledRejection',
+  'SIGHUP',
+  'SIGINT',
+  'SIGQUIT',
+  'SIGILL',
+  'SIGTRAP',
+  'SIGABRT',
+  'SIGBUS',
+  'SIGFPE',
+  'SIGUSR1',
+  'SIGSEGV',
+  'SIGUSR2',
+  'SIGTERM',
+];

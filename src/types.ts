@@ -8,8 +8,8 @@ export type PysakaLoggerParams = {
   destination?: DestinationType;
   severity?: SeverityLevelEnum;
   format?: PrintFormatEnum;
-  name?: string;
-  debugLogsOfLogger?: boolean;
+  prefix?: string;
+  internalLogs?: boolean;
 };
 
 export interface IPysakaLogger {
@@ -19,8 +19,11 @@ export interface IPysakaLogger {
   error(...args: any[]): this;
   debug(...args: any[]): this;
   fatal(...args: any[]): this;
-  closeSync(): void;
   close(): Promise<void>;
+  // auxiliary methods
+  setSeverity(severity: SeverityLevelEnum): void;
+  setFormat(format: PrintFormatEnum): void;
+  setPrefix(prefix: string): void;
 }
 
 export type LogItem = {

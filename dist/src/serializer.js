@@ -15,14 +15,16 @@ const TEXT_COLORS = {
     GREEN: '\x1b[32m',
     RED: '\x1b[31m',
     PURPLE: '\x1b[35m',
+    GREY: '\x1b[90m',
 };
 class LogSerializer extends EventEmitter {
-    constructor(loggerId, severity, encoding = 'utf-8', format = 'json') {
+    constructor(loggerId, severity, encoding = 'utf-8', format = 'json', prefix = '') {
         super();
         this.loggerId = loggerId;
         this.severity = severity;
         this.encoding = encoding;
         this.format = format;
+        this.prefix = prefix;
     }
     getFormat() {
         return this.format;
@@ -50,6 +52,9 @@ class LogSerializer extends EventEmitter {
                 ? TEXT_COLORS.YELLOW
                 : TEXT_COLORS.GREEN;
         let str = `[${timeStr}] ${llc}${logObj.level}${cReset} (${logObj.pid})`;
+        if (logObj.prefix) {
+            str += ` ${TEXT_COLORS.GREY}${logObj.prefix}${cReset}`;
+        }
         if (logObj.msg) {
             str += ` ${TEXT_COLORS.CYAN}"${logObj.msg}"${cReset}`;
         }
@@ -64,6 +69,9 @@ class LogSerializer extends EventEmitter {
             level: SeverityLevelValueToKey[logLevel ?? this.severity] ?? this.severity,
             pid: process.pid,
         };
+        if (this.prefix) {
+            logObj.prefix = this.prefix;
+        }
         if (typeof msg === 'string' || msg instanceof String) {
             logObj.msg = String(msg);
         }
@@ -79,6 +87,15 @@ class LogSerializer extends EventEmitter {
     getLocaleTimestamp(t = Date.now()) {
         const d = new Date(t);
         return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+    }
+    setSeverity(severity) {
+        this.severity = severity;
+    }
+    setFormat(format) {
+        this.format = format;
+    }
+    setPrefix(prefix) {
+        this.prefix = prefix;
     }
 }
 module.exports = { LogSerializer };

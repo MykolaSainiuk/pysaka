@@ -2,7 +2,6 @@
 const { isMainThread, workerData, parentPort } = require('node:worker_threads');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { deserialize } = require('node:v8');
-// const { isMainThread, parentPort, workerData } = require('node:worker_threads');
 if (isMainThread) {
   throw new Error('This file is not intended be loaded in the main thread');
 }
@@ -15,11 +14,9 @@ const logSerializer = new LogSerializer(
   workerData.severity,
   workerData.encoding,
   workerData.format,
+  workerData.prefix,
 );
 const format = logSerializer.getFormat();
-
-const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
-const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 
 // copied from src/consts.ts - keep in sync
 const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
@@ -31,18 +28,31 @@ const parseError = '?parse_err?';
 
 let contentFromLastBatch = Buffer.from(emptyBuffer);
 
-parentPort.once('message', () => {
-  // process.stderr.write('[[[' + contentFromLastBatch.toString('utf-8') + ']]]');
-  if (contentFromLastBatch.length) {
-    const { parsed } = parseContent(fullContent);
-    process.stdout.write(parsed);
+parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
+  if (end) {
+    // process.stderr.write('[[[' + contentFromLastBatch.toString('utf-8') + ']]]');
+    if (contentFromLastBatch.length) {
+      const { parsed } = parseContent(fullContent);
+      process.stdout.write(parsed);
+    }
+
+    // TODO: do it via Atomic and break;
+
+    process.stdin.emit('end');
+    process.stdout.writableEnded || process.stdout.end();
+    parentPort.removeAllListeners();
+    return;
   }
 
-  process.stdin.emit('end');
-  // TODO: do it via Atomic and break;
-
-  process.stdout.writableEnded || process.stdout.end();
-  Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
+  if (severity) {
+    logSerializer.setSeverity(severity);
+  }
+  if (format) {
+    logSerializer.setFormat(format);
+  }
+  if (prefix) {
+    logSerializer.setPrefix(prefix);
+  }
 });
 
 (async () => {
@@ -71,10 +81,7 @@ parentPort.once('message', () => {
       // process.stderr.write('[[[' + rest.toString('utf-8') + ']]]');
       contentFromLastBatch = Buffer.from(rest?.length ? rest : emptyBuffer);
     }
-    // Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
   }
-
-  process.stderr.write('[[[ HERE ]]]');
 })();
 
 function parseContent(buf) {
@@ -196,17 +203,3 @@ function castBufferToPrimitive(bufferAsStr, type) {
       return parseError;
   }
 }
-
-// parentPort.on('message', ([logLevel, ...args]) => {
-//   // serialization here so no extra CPU consumption in the main thread
-//   const lvl = logLevel ?? logSerializer.severity;
-//   const bufferContent =
-//     format === 'text'
-//       ? logSerializer.serializeText(args, lvl)
-//       : logSerializer.serializeJSON(args, lvl);
-
-//   if (process.stdout.writable) {
-//     process.stdout.write(bufferContent);
-//     Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
-//   }
-// });

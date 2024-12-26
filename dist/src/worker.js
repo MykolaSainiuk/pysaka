@@ -6,24 +6,34 @@ if (isMainThread) {
     throw new Error('This file is not intended be loaded in the main thread');
 }
 const { LogSerializer } = require('./serializer.js');
-const logSerializer = new LogSerializer(workerData.loggerId, workerData.severity, workerData.encoding, workerData.format);
+const logSerializer = new LogSerializer(workerData.loggerId, workerData.severity, workerData.encoding, workerData.format, workerData.prefix);
 const format = logSerializer.getFormat();
-const sharedMemoryAsBuffer = workerData.sharedMemoryAsBuffer;
-const atomicLogsLeftToWriteCountdown = new Int32Array(sharedMemoryAsBuffer);
 const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
 const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', 'utf-8');
 const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', 'utf-8');
 const emptyBuffer = Buffer.alloc(0);
 const parseError = '?parse_err?';
 let contentFromLastBatch = Buffer.from(emptyBuffer);
-parentPort.once('message', () => {
-    if (contentFromLastBatch.length) {
-        const { parsed } = parseContent(fullContent);
-        process.stdout.write(parsed);
+parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
+    if (end) {
+        if (contentFromLastBatch.length) {
+            const { parsed } = parseContent(fullContent);
+            process.stdout.write(parsed);
+        }
+        process.stdin.emit('end');
+        process.stdout.writableEnded || process.stdout.end();
+        parentPort.removeAllListeners();
+        return;
     }
-    process.stdin.emit('end');
-    process.stdout.writableEnded || process.stdout.end();
-    Atomics.sub(atomicLogsLeftToWriteCountdown, 0, 1);
+    if (severity) {
+        logSerializer.setSeverity(severity);
+    }
+    if (format) {
+        logSerializer.setFormat(format);
+    }
+    if (prefix) {
+        logSerializer.setPrefix(prefix);
+    }
 });
 (async () => {
     for await (const buf of process.stdin) {
@@ -44,7 +54,6 @@ parentPort.once('message', () => {
             contentFromLastBatch = Buffer.from(rest?.length ? rest : emptyBuffer);
         }
     }
-    process.stderr.write('[[[ HERE ]]]');
 })();
 function parseContent(buf) {
     const startIdx = buf.indexOf(BUFFER_LOGS_START_SEPARATOR);
