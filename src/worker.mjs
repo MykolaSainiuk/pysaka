@@ -1,13 +1,11 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { isMainThread, workerData, parentPort } = require('node:worker_threads');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { deserialize } = require('node:v8');
+import { isMainThread, workerData, parentPort } from 'node:worker_threads';
+import { deserialize } from 'node:v8';
+
+import { LogSerializer } from './serializer.mjs';
+
 if (isMainThread) {
   throw new Error('This file is not intended be loaded in the main thread');
 }
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { LogSerializer } = require('./serializer.js');
 
 const logSerializer = new LogSerializer(
   workerData.loggerId,

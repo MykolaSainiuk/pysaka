@@ -1,4 +1,4 @@
-import { PysakaLogger } from '../src/logger.js';
+import { PysakaLogger } from '../dist/src/index.js';
 const logger1 = new PysakaLogger({
     format: 'text',
     internalLogs: false,
@@ -11,7 +11,7 @@ logger1.error('some text', 17, null, [1, true], {
     'some extra': { a: false, b: [3, 3] },
 });
 logger1.log('<--------------------');
-logger1.close().finally(() => {
-    process.stdout.write('All done but process.stdout is still available!\n');
-});
-//# sourceMappingURL=debug.js.map
+await logger1.close();
+process.stdout.write('All done but process.stdout is still available!\n');
+setInterval(() => { }, 1 << 30);
+//# sourceMappingURL=debug.mjs.map

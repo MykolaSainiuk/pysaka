@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { Writable } from 'node:stream';
-import { PrintFormatEnum, SeverityLevelEnum } from './enums';
+import { PrintFormatEnum, SeverityLevelEnum } from './enums.js';
 export type DestinationType = Writable;
 export type PysakaLoggerParams = {
     destination?: DestinationType;

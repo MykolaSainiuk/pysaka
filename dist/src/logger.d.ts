@@ -1,5 +1,5 @@
-import { PrintFormatEnum, SeverityLevelEnum } from './enums';
-import type { IPysakaLogger, PysakaLoggerParams } from './types';
+import { PrintFormatEnum, SeverityLevelEnum } from './enums.js';
+import type { IPysakaLogger, PysakaLoggerParams } from './types.js';
 export declare class PysakaLogger implements IPysakaLogger {
     private destination;
     private severity;

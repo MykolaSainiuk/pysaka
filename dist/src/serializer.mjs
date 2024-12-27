@@ -1,6 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const { EventEmitter } = require('node:stream');
+import { EventEmitter } from 'node:events';
 const SeverityLevelValueToKey = {
     0: 'DEBUG',
     1: 'INFO',
@@ -17,7 +15,7 @@ const TEXT_COLORS = {
     PURPLE: '\x1b[35m',
     GREY: '\x1b[90m',
 };
-class LogSerializer extends EventEmitter {
+export class LogSerializer extends EventEmitter {
     constructor(loggerId, severity, encoding = 'utf-8', format = 'json', prefix = '') {
         super();
         this.loggerId = loggerId;
@@ -98,5 +96,4 @@ class LogSerializer extends EventEmitter {
         this.prefix = prefix;
     }
 }
-module.exports = { LogSerializer };
-//# sourceMappingURL=serializer.js.map
+//# sourceMappingURL=serializer.mjs.map

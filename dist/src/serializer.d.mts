@@ -18,4 +18,4 @@ export class LogSerializer extends EventEmitter<[never]> {
     setFormat(format: any): void;
     setPrefix(prefix: any): void;
 }
-import { EventEmitter } from "events";
+import { EventEmitter } from 'node:events';

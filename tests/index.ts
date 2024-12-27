@@ -61,8 +61,12 @@ test.only('Log smth more params of other types', async (t) => {
 });
 
 test('Log smth to file', async (t) => {
-  await mkdir('./__temp').finally();
-  await open('./__temp/test.log', 'w');
+  try {
+    await mkdir('./__temp');
+  } catch {}
+  try {
+    await open('./__temp/test.log', 'w');
+  } catch {}
   const logger = new PysakaLogger({
     format: 'json' as any,
     destination: fs.createWriteStream('./__temp/test.log'),

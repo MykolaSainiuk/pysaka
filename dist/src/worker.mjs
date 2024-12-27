@@ -1,11 +1,9 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const { isMainThread, workerData, parentPort } = require('node:worker_threads');
-const { deserialize } = require('node:v8');
+import { isMainThread, workerData, parentPort } from 'node:worker_threads';
+import { deserialize } from 'node:v8';
+import { LogSerializer } from './serializer.mjs';
 if (isMainThread) {
     throw new Error('This file is not intended be loaded in the main thread');
 }
-const { LogSerializer } = require('./serializer.js');
 const logSerializer = new LogSerializer(workerData.loggerId, workerData.severity, workerData.encoding, workerData.format, workerData.prefix);
 const format = logSerializer.getFormat();
 const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
@@ -147,4 +145,4 @@ function castBufferToPrimitive(bufferAsStr, type) {
             return parseError;
     }
 }
-//# sourceMappingURL=worker.js.map
+//# sourceMappingURL=worker.mjs.map

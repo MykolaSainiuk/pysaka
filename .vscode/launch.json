@@ -29,6 +29,24 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "tests/debug.mjs",
+            "skipFiles": ["<node_internals>/**", "node_modules/**"],
+            "sourceMaps": true,
+            "stopOnEntry": false,
+            // "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node-esm",
+            // "preLaunchTask": "tsc: build - tsconfig.json",
+            "program": "${workspaceFolder}/tests/debug.mjs",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "restart": true,
+            "showAsyncStacks": true,
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "tests/index.ts",
             "skipFiles": ["<node_internals>/**", "node_modules/**"],
             "program": "${workspaceFolder}/dist/tests/index.js",

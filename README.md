@@ -21,7 +21,7 @@ Such apparent things:
 
 - <b>it does not affect performance of the main process</b>
 
-  - bcz logs are important but less than business logic
+  - bcz logs are important but less important than business logic
 
 
 ## How to install?

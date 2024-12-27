@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { EventEmitter } = require('node:stream');
+import { EventEmitter } from 'node:events';
 
 const SeverityLevelValueToKey = {
   0: 'DEBUG',
@@ -19,7 +18,7 @@ const TEXT_COLORS = {
   GREY: '\x1b[90m',
 };
 
-class LogSerializer extends EventEmitter {
+export class LogSerializer extends EventEmitter {
   constructor(
     loggerId,
     severity,
@@ -125,5 +124,3 @@ class LogSerializer extends EventEmitter {
     this.prefix = prefix;
   }
 }
-
-module.exports = { LogSerializer };

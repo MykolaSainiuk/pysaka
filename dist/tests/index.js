@@ -1,19 +1,14 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const node_fs_1 = __importDefault(require("node:fs"));
-const promises_1 = require("node:fs/promises");
-const node_test_1 = require("node:test");
-const logger_1 = require("../src/logger");
-(0, node_test_1.test)('Create an instance -> log a message -> close the logger', async () => {
-    const logger = new logger_1.PysakaLogger();
+import fs from 'node:fs';
+import { open, mkdir } from 'node:fs/promises';
+import { test } from 'node:test';
+import { PysakaLogger } from '../src/logger.js';
+test('Create an instance -> log a message -> close the logger', async () => {
+    const logger = new PysakaLogger();
     logger.log('Hello, world!');
     await logger.close();
 });
-(0, node_test_1.test)('Log smth more (JSON)', async (t) => {
-    const logger = new logger_1.PysakaLogger({
+test('Log smth more (JSON)', async (t) => {
+    const logger = new PysakaLogger({
         format: 'json',
     });
     logger.log('some json', 'Hello, world!', {
@@ -22,8 +17,8 @@ const logger_1 = require("../src/logger");
     });
     await logger.close();
 });
-(0, node_test_1.test)('Log smth more (TEXT)', async (t) => {
-    const logger = new logger_1.PysakaLogger({
+test('Log smth more (TEXT)', async (t) => {
+    const logger = new PysakaLogger({
         format: 'text',
         severity: 'debug',
     });
@@ -39,8 +34,8 @@ const logger_1 = require("../src/logger");
     });
     await logger.close();
 });
-(0, node_test_1.test)('Log some err (TEXT)', async (t) => {
-    const logger = new logger_1.PysakaLogger({
+test('Log some err (TEXT)', async (t) => {
+    const logger = new PysakaLogger({
         format: 'text',
     });
     logger.log('>--------------------');
@@ -48,17 +43,23 @@ const logger_1 = require("../src/logger");
     logger.log('<--------------------');
     await logger.close();
 });
-node_test_1.test.only('Log smth more params of other types', async (t) => {
-    const logger = new logger_1.PysakaLogger();
+test.only('Log smth more params of other types', async (t) => {
+    const logger = new PysakaLogger();
     logger.log('some log info', 'Hello, world!', true, null);
     await logger.close();
 });
-(0, node_test_1.test)('Log smth to file', async (t) => {
-    await (0, promises_1.mkdir)('./__temp').finally();
-    await (0, promises_1.open)('./__temp/test.log', 'w');
-    const logger = new logger_1.PysakaLogger({
+test('Log smth to file', async (t) => {
+    try {
+        await mkdir('./__temp');
+    }
+    catch { }
+    try {
+        await open('./__temp/test.log', 'w');
+    }
+    catch { }
+    const logger = new PysakaLogger({
         format: 'json',
-        destination: node_fs_1.default.createWriteStream('./__temp/test.log'),
+        destination: fs.createWriteStream('./__temp/test.log'),
     });
     logger.log('some json', 'Hello, world!', {
         foo: 'bar',
@@ -66,8 +67,8 @@ node_test_1.test.only('Log smth more params of other types', async (t) => {
     });
     await logger.close();
 });
-(0, node_test_1.test)('No fallback stream: logs lost bcz no fallback support', async (t) => {
-    const logger = new logger_1.PysakaLogger();
+test('No fallback stream: logs lost bcz no fallback support', async (t) => {
+    const logger = new PysakaLogger();
     logger.log('-------------------->');
     let i = 0;
     await new Promise((resolve) => {

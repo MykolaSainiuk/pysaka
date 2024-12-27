@@ -6,9 +6,9 @@
       "transpileOnly": true,
   },
   "compilerOptions": {
-    "module": "NodeNext",
+    "module": "ESNext",
     "target": "ESNext",
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "Node",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -26,10 +26,17 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.js",
-    "tests/*.ts",
+    "src/**/*.mjs",
+    "tests/**/*.ts",
+    "tests/**/*.js",
+    "tests/**/*.mjs",
   ],
   "exclude": [
     "node_modules",
     "dist",
-  ]
+    "__temp"
+  ],
+  "typeRoots": [
+    "./node_modules/@types"
+  ],
 }

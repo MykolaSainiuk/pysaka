@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /// <reference types="node" />
-import type { PysakaLoggerParams } from './types';
+import type { PysakaLoggerParams } from './types.js';
 export declare const DEFAULT_LOGGER_PARAMS: PysakaLoggerParams;
 export declare const LOGGER_PREFIX = "[Pysaka]";
 export declare const BUFFER_ARGS_SEPARATOR: Buffer;

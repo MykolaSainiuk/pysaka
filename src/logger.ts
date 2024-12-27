@@ -9,7 +9,7 @@ import {
   BUFFER_LOGS_END_SEPARATOR,
   BUFFER_LOGS_START_SEPARATOR,
   DEFAULT_LOGGER_PARAMS,
-  EXIT_SIGNALS,
+  // EXIT_SIGNALS,
   LOGGER_PREFIX,
 } from './consts';
 import { PrintFormatEnum, SeverityLevelEnum } from './enums';
@@ -19,6 +19,7 @@ import type {
   PysakaLoggerParams,
 } from './types';
 import { generateNumericId, getTypeAsBuffer } from './util';
+// import { once } from 'node:events';
 
 // EventEmitter.defaultMaxListeners = 100;
 export class PysakaLogger implements IPysakaLogger {
@@ -47,13 +48,13 @@ export class PysakaLogger implements IPysakaLogger {
     this.prefix = params.prefix;
     this.internalLogs = params.internalLogs ?? false;
 
-    EXIT_SIGNALS.forEach((event) =>
-      process.once(event, async (code) => {
-        await this.gracefulShutdown();
-        process.exit(Number.isNaN(code) ? 0 : code);
-      }),
-    );
-    process.once('exit', this.destructor.bind(this));
+    // EXIT_SIGNALS.forEach((event) =>
+    //   process.once(event, async (code) => {
+    //     await this.gracefulShutdown();
+    //     process.exit(Number.isNaN(+code) ? 0 : code);
+    //   }),
+    // );
+    // process.once('exit', this.destructor.bind(this));
 
     try {
       this.init();
@@ -97,7 +98,7 @@ export class PysakaLogger implements IPysakaLogger {
     this.loggerId = generateNumericId(10);
 
     const dirname = process.cwd();
-    const workerPath = path.join(dirname, './src/worker.js');
+    const workerPath = path.join(dirname, './src/worker.mjs');
 
     this.logWorker = new Worker(workerPath, {
       name: this.loggerId,
@@ -112,7 +113,7 @@ export class PysakaLogger implements IPysakaLogger {
         prefix: this.prefix,
       },
     });
-    this.logWorker.unref();
+    // this.logWorker.unref();
     // this.logWorker.stderr.pipe(process.stderr);
 
     this.internalLogs &&
@@ -212,6 +213,7 @@ export class PysakaLogger implements IPysakaLogger {
     await Promise.all([
       this.logWorker.stdin.end(),
       // write downstream the logs into destination
+      // once(this.logWorker.stdin, 'finish'),
       finished(this.logWorker.stdin),
     ]);
 
