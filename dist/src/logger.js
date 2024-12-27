@@ -61,8 +61,8 @@ export class PysakaLogger {
     }
     initWorker() {
         this.loggerId = generateNumericId(10);
-        const dirname = process.cwd();
-        const workerPath = path.join(dirname, './src/worker.mjs');
+        const dirname = import.meta.dirname;
+        const workerPath = path.join(dirname, 'worker.mjs');
         this.logWorker = new Worker(workerPath, {
             name: this.loggerId,
             stdout: true,
