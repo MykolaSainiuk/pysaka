@@ -10,6 +10,7 @@ const TEXT_COLORS = {
     DEFAULT_COLOR: '\x1b[0m',
     CYAN: '\x1b[36m',
     YELLOW: '\x1b[33m',
+    ORANGE: '\x1b[38;5;208m',
     GREEN: '\x1b[32m',
     RED: '\x1b[31m',
     PURPLE: '\x1b[35m',
@@ -46,7 +47,7 @@ export class LogSerializer extends EventEmitter {
         const ll = logLevel ?? this.severity;
         const llc = logLevel >= 3
             ? TEXT_COLORS.RED
-            : ll === 2
+            : ll == 2
                 ? TEXT_COLORS.YELLOW
                 : TEXT_COLORS.GREEN;
         let str = `[${timeStr}] ${llc}${logObj.level}${cReset} (${logObj.pid})`;

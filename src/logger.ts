@@ -114,7 +114,7 @@ export class PysakaLogger implements IPysakaLogger {
       },
     });
     // this.logWorker.unref();
-    // this.logWorker.stderr.pipe(process.stderr);
+    // this.logWorker.stderr.pipe(process.stderr, { end: false });
 
     this.internalLogs &&
       process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);

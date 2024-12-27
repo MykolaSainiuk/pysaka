@@ -13,5 +13,4 @@ logger1.error('some text', 17, null, [1, true], {
 logger1.log('<--------------------');
 await logger1.close();
 process.stdout.write('All done but process.stdout is still available!\n');
-setInterval(() => { }, 1 << 30);
 //# sourceMappingURL=debug.mjs.map

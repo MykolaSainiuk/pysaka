@@ -72,7 +72,7 @@ function parseContent(buf) {
     const lvl = buf.slice(lastIdx, lastIdx + 1);
     lastIdx += 3;
     while (lastIdx > -1 && lastIdx < endIdx) {
-        const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
+        const nextIdx = Math.min(buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1), buf.indexOf(BUFFER_LOGS_END_SEPARATOR, lastIdx + 1));
         if (nextIdx === -1) {
             const b = buf.slice(lastIdx, buf.length - l);
             args.push(deserializeBuffer(b));

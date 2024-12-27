@@ -37,7 +37,7 @@ process.stdout.write('All done but process.stdout is still available!\n');
 // });
 
 // in order to keep the process running
-setInterval(() => {}, 1 << 30);
+// setInterval(() => {}, 1 << 30);
 
 // eslint-disable-next-line prefer-const
 // const tid = setTimeout(() => {

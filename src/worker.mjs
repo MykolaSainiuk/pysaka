@@ -61,7 +61,9 @@ parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
   }, 10);
 
   for await (const buf of process.stdin) {
-    // process.stdout.write('Received buffer: \n' + buf.toString('utf-8'));
+    // process.stderr.write(
+    //   '\nReceived buffer: ' + buf.toString('utf-8') + '\n\n',
+    // );
     if (!buf.length || !process.stdout.writable) {
       continue;
     }
@@ -77,6 +79,7 @@ parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
       rest.indexOf(BUFFER_LOGS_START_SEPARATOR) > -1 &&
       rest.indexOf(BUFFER_LOGS_END_SEPARATOR) > -1
     ) {
+      // process.stderr.write('\nRest buffer: ' + rest.toString('utf-8') + '\n\n');
       ({ parsed, rest } = parseContent(rest));
       process.stdout.write(parsed);
     }
@@ -114,7 +117,10 @@ function parseContent(buf) {
   // args.push(Number.parseInt(lvl.toString('utf-8'), 10));
 
   while (lastIdx > -1 && lastIdx < endIdx) {
-    const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
+    const nextIdx = Math.min(
+      buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1),
+      buf.indexOf(BUFFER_LOGS_END_SEPARATOR, lastIdx + 1),
+    );
     // process.stderr.write('>>>>>>>>>>>>> nextIdx=' + nextIdx + '\n');
     if (nextIdx === -1) {
       const b = buf.slice(lastIdx, buf.length - l);
@@ -131,7 +137,7 @@ function parseContent(buf) {
   }
 
   // process.stderr.write('-> length:' + args.length + '\n');
-  // process.stderr.write('-> args:', args.join(', ') + '\n');
+  // process.stderr.write('\n\n-> args:' + args.join(', ') + '\n\n');
 
   // serialization here so no extra CPU consumption in the main thread
   const bufferContent =
