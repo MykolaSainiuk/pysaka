@@ -12,7 +12,7 @@ const logSerializer = new LogSerializer(
   workerData.severity,
   workerData.encoding,
   workerData.format,
-  workerData.prefix,
+  workerData.scope,
 );
 const format = logSerializer.getFormat();
 
@@ -26,16 +26,14 @@ const parseError = '?parse_err?';
 
 let contentFromLastBatch = Buffer.from(emptyBuffer);
 
-parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
+parentPort.on('message', ({ end, severity, format, scope } = {}) => {
   if (end) {
     // process.stderr.write('[[[' + contentFromLastBatch.toString('utf-8') + ']]]');
     if (contentFromLastBatch.length) {
       const { parsed } = parseContent(fullContent);
       process.stdout.write(parsed);
     }
-
     // TODO: do it via Atomic and break;
-
     process.stdin.emit('end');
     process.stdout.writableEnded || process.stdout.end();
     parentPort.removeAllListeners();
@@ -48,8 +46,8 @@ parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
   if (format) {
     logSerializer.setFormat(format);
   }
-  if (prefix) {
-    logSerializer.setPrefix(prefix);
+  if (scope) {
+    logSerializer.setScope(scope);
   }
 });
 
@@ -106,15 +104,25 @@ function parseContent(buf) {
     return { parsed: emptyBuffer, rest: emptyBuffer };
   }
 
-  // TODO: parse log level differently bcz it's single-digit number
-
-  // const buffers = [];
   const args = [];
   let lastIdx = startIdx + BUFFER_LOGS_START_SEPARATOR.length;
   const l = BUFFER_ARGS_SEPARATOR.length;
-  const lvl = buf.slice(lastIdx, lastIdx + 1);
-  lastIdx += 3;
-  // args.push(Number.parseInt(lvl.toString('utf-8'), 10));
+  const lvl = buf.subarray(lastIdx, lastIdx + 1);
+  lastIdx += 3; // 2 is for separator and 1 for level digit
+
+  // const postLvlChar = buf.subarray(lastIdx, lastIdx + 2);
+  // let scope = '';
+  // // yes, 0 means equal, damn
+  // if (Buffer.compare(postLvlChar, BUFFER_ARGS_SEPARATOR) === 0) {
+  //   // no scope defined - skipping
+  //   lastIdx += 2;
+  // } else {
+  //   // scope is defined
+  //   const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
+  //   scope = buf.subarray(lastIdx, nextIdx).toString('utf-8');
+  //   // args.push(buf.subarray(lastIdx, nextIdx).toString('utf-8'));
+  //   lastIdx = nextIdx + l;
+  // }
 
   while (lastIdx > -1 && lastIdx < endIdx) {
     const nextIdx = Math.min(
@@ -123,15 +131,13 @@ function parseContent(buf) {
     );
     // process.stderr.write('>>>>>>>>>>>>> nextIdx=' + nextIdx + '\n');
     if (nextIdx === -1) {
-      const b = buf.slice(lastIdx, buf.length - l);
-      // buffers.push(b);
+      const b = buf.subarray(lastIdx, buf.length - l);
       // process.stderr.write('>>>>>>>>>>>>> last buffer:' + b.toString('utf-8') + '\n');
       args.push(deserializeBuffer(b));
       break;
     }
-    const b = buf.slice(lastIdx, nextIdx);
+    const b = buf.subarray(lastIdx, nextIdx);
     // process.stderr.write('>>>>>>>>>>>>> + buffer:' + b.toString('utf-8') + '\n');
-    // buffers.push(b);
     args.push(deserializeBuffer(b));
     lastIdx = nextIdx + l;
   }
@@ -142,15 +148,15 @@ function parseContent(buf) {
   // serialization here so no extra CPU consumption in the main thread
   const bufferContent =
     format === 'text'
-      ? logSerializer.serializeText(args, lvl)
-      : logSerializer.serializeJSON(args, lvl);
+      ? logSerializer.serializeText(args, lvl, scope)
+      : logSerializer.serializeJSON(args, lvl, scope);
 
   // process.stderr.write('-> bufferContent:' + bufferContent.toString('utf-8') + '\n');
   return {
     parsed: bufferContent,
     rest:
       endIdx + BUFFER_LOGS_END_SEPARATOR.length < buf.length
-        ? buf.slice(endIdx + BUFFER_LOGS_END_SEPARATOR.length)
+        ? buf.subarray(endIdx + BUFFER_LOGS_END_SEPARATOR.length)
         : emptyBuffer,
   };
 }

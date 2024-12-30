@@ -5,8 +5,8 @@ export const DEFAULT_LOGGER_PARAMS: PysakaLoggerParams = {
   destination: process.stdout,
   severity: SeverityLevelEnum.INFO,
   format: PrintFormatEnum.JSON,
+  scope: '',
   internalLogs: false,
-  prefix: '',
 };
 
 export const LOGGER_PREFIX = '[Pysaka]';

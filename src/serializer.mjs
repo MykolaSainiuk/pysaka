@@ -17,6 +17,7 @@ const TEXT_COLORS = {
   RED: '\x1b[31m',
   PURPLE: '\x1b[35m',
   GREY: '\x1b[90m',
+  MILK_WHITE: '\x1b[97m',
 };
 
 export class LogSerializer extends EventEmitter {
@@ -25,22 +26,22 @@ export class LogSerializer extends EventEmitter {
     severity,
     encoding = 'utf-8',
     format = 'json',
-    prefix = '',
+    scope = '',
   ) {
     super();
     this.loggerId = loggerId;
     this.severity = severity;
     this.encoding = encoding;
     this.format = format;
-    this.prefix = prefix;
+    this.scope = scope;
   }
 
   getFormat() {
     return this.format;
   }
 
-  serializeJSON(args, logLevel) {
-    const logObj = this.getLogItem(args, logLevel);
+  serializeJSON(args, logLevel, scope) {
+    const logObj = this.getLogItem(args, logLevel, scope);
 
     return Buffer.from(
       JSON.stringify(logObj, undefined, 0) + '\n',
@@ -48,7 +49,7 @@ export class LogSerializer extends EventEmitter {
     );
   }
 
-  serializeText(args, logLevel) {
+  serializeText(args, logLevel, scope) {
     const logObj = this.getLogItem(args, logLevel);
     const cReset = TEXT_COLORS.DEFAULT_COLOR;
     const time = this.getLocaleTimestamp(logObj.time);
@@ -65,11 +66,13 @@ export class LogSerializer extends EventEmitter {
         ? TEXT_COLORS.RED
         : ll == 2
         ? TEXT_COLORS.YELLOW
+        : ll == 0
+        ? TEXT_COLORS.MILK_WHITE
         : TEXT_COLORS.GREEN;
 
     let str = `[${timeStr}] ${llc}${logObj.level}${cReset} (${logObj.pid})`;
-    if (logObj.prefix) {
-      str += ` ${TEXT_COLORS.GREY}${logObj.prefix}${cReset}`;
+    if (scope) {
+      str += ` ${TEXT_COLORS.GREY}${scope}${cReset}`;
     }
     if (logObj.msg) {
       str += ` ${TEXT_COLORS.CYAN}"${logObj.msg}"${cReset}`;
@@ -85,15 +88,15 @@ export class LogSerializer extends EventEmitter {
     return Buffer.from(str + '\n', this.encoding);
   }
 
-  getLogItem([msg, ...rest], logLevel) {
+  getLogItem([msg, ...rest], logLevel, scope) {
     const logObj = {
       time: Date.now(),
       level:
         SeverityLevelValueToKey[logLevel ?? this.severity] ?? this.severity,
       pid: process.pid,
     };
-    if (this.prefix) {
-      logObj.prefix = this.prefix;
+    if (this.scope) {
+      logObj.scope = this.scope;
     }
     if (typeof msg === 'string' || msg instanceof String) {
       logObj.msg = String(msg);
@@ -121,7 +124,7 @@ export class LogSerializer extends EventEmitter {
     this.format = format;
   }
 
-  setPrefix(prefix) {
-    this.prefix = prefix;
+  setScope(scope) {
+    this.scope = scope;
   }
 }

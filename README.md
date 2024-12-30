@@ -115,23 +115,23 @@ hence the constructor expects such object as a param
         destination?: DestinationType;
         severity?: SeverityLevelEnum;
         format?: PrintFormatEnum;
-        prefix?: string;
+        scope?: string;
         internalLogs?: boolean;
     };
 
-In details:
+In details (all fields are *optional* and get default values if not set):
 
 - `destination` - must be Writable stream! Mostly it's process.stdout, or file descriptor with write access, net socket or custom Writable stream. Default is process.stdout.
 
-- `severity` - aka a log level: 0 - debug, 1 - info, 2 - warn, 3 - error, 4 - fatal
+- `severity` - aka a log level: 0 - debug, 1 - info, 2 - warn, 3 - error, 4 - fatal. Default is info
 
 - `format` - two options: "json" or "text"
   - JSON - for post-reexporting into monitoring tools (default format)
   - text - for human readability, with colors
 
-- `prefix` - a name of the logger (optional): will be pre-inserted for each log message. Default is empty string.
+- `scope` - mostly represent a class/file/module in which the logger acts: will be pre-inserted for each log message. Default is empty string
 
-- `internalLogs` - a flag which identifies if the debug logs of the logger itself should be printed. Internal usage mostly
+- `internalLogs` - a flag which enables the debug logs of the logger itself. Default is false. Internal usage mostly so you should not have a necessity to use it unless bugs
 
 ## Does not do what I want
 

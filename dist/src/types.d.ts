@@ -6,7 +6,7 @@ export type PysakaLoggerParams = {
     destination?: DestinationType;
     severity?: SeverityLevelEnum;
     format?: PrintFormatEnum;
-    prefix?: string;
+    scope?: string;
     internalLogs?: boolean;
 };
 export interface IPysakaLogger {
@@ -19,7 +19,7 @@ export interface IPysakaLogger {
     close(): Promise<void>;
     setSeverity(severity: SeverityLevelEnum): void;
     setFormat(format: PrintFormatEnum): void;
-    setPrefix(prefix: string): void;
+    setScope(scope: string): void;
 }
 export type LogItem = {
     time: number;

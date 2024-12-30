@@ -21,12 +21,11 @@ import type {
 import { generateNumericId, getTypeAsBuffer } from './util';
 // import { once } from 'node:events';
 
-// EventEmitter.defaultMaxListeners = 100;
 export class PysakaLogger implements IPysakaLogger {
   private destination: DestinationType;
   private severity: SeverityLevelEnum;
   private format: PrintFormatEnum;
-  private prefix: string;
+  private scope: string;
   private internalLogs: boolean = false;
   private serializerEncoding: BufferEncoding = 'utf-8';
 
@@ -45,7 +44,7 @@ export class PysakaLogger implements IPysakaLogger {
 
     this.severity = params.severity;
     this.format = params.format;
-    this.prefix = params.prefix;
+    this.scope = params.scope;
     this.internalLogs = params.internalLogs ?? false;
 
     this.setupExitHandlers();
@@ -104,7 +103,7 @@ export class PysakaLogger implements IPysakaLogger {
         severity: this.severity,
         encoding: this.serializerEncoding,
         format: this.format,
-        prefix: this.prefix,
+        scope: this.scope,
       },
     });
     // this.logWorker.unref();
@@ -152,6 +151,12 @@ export class PysakaLogger implements IPysakaLogger {
       Buffer.from(String(logLevel)), // no need for type bcz it's always INT
       BUFFER_ARGS_SEPARATOR,
     ];
+
+    // if (this.scope) {
+    //   buffers.push(Buffer.from(this.scope, 'utf-8'));
+    // }
+    // buffers.push(BUFFER_ARGS_SEPARATOR);
+
     const l = args.length;
     for (let i = 0; i < l; i++) {
       const item =
@@ -260,13 +265,14 @@ export class PysakaLogger implements IPysakaLogger {
     this.logWorker.postMessage({ format });
   }
 
-  setPrefix(prefix: string): void {
-    this.prefix = prefix;
-    this.logWorker.postMessage({ prefix });
+  setScope(scope: string): void {
+    this.scope = scope;
+    // [not anymore] each message gets it additionally if set
+    this.logWorker.postMessage({ scope });
   }
 
   // TODO: implement
-  public child(newPrefix?: string) {
+  public withScope(newScope: string) {
     return this;
   }
 }

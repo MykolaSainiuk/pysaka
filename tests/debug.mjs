@@ -5,7 +5,8 @@ import { PysakaLogger } from '../dist/src/index.js';
 const logger1 = new PysakaLogger({
   format: 'text',
   internalLogs: false,
-  prefix: 'debug.ts',
+  scope: 'debug.ts',
+  severity: 0,
 });
 logger1.log('-------------------->');
 
@@ -23,7 +24,7 @@ logger1.error('msg_text', { error: 'error_text' });
 // process.exit(0);
 // throw new Error('exit uncaught error');
 
-logger1.error('some text', 17, null, [1, true], {
+logger1.debug('some text', 17, null, [1, true], {
   foo: 'bar',
   'some extra': { a: false, b: [3, 3] },
 });

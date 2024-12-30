@@ -10,7 +10,7 @@ export class PysakaLogger {
     destination;
     severity;
     format;
-    prefix;
+    scope;
     internalLogs = false;
     serializerEncoding = 'utf-8';
     isDestroyed = false;
@@ -24,7 +24,7 @@ export class PysakaLogger {
         }
         this.severity = params.severity;
         this.format = params.format;
-        this.prefix = params.prefix;
+        this.scope = params.scope;
         this.internalLogs = params.internalLogs ?? false;
         this.setupExitHandlers();
         try {
@@ -74,7 +74,7 @@ export class PysakaLogger {
                 severity: this.severity,
                 encoding: this.serializerEncoding,
                 format: this.format,
-                prefix: this.prefix,
+                scope: this.scope,
             },
         });
         this.internalLogs &&
@@ -182,11 +182,11 @@ export class PysakaLogger {
         this.format = format;
         this.logWorker.postMessage({ format });
     }
-    setPrefix(prefix) {
-        this.prefix = prefix;
-        this.logWorker.postMessage({ prefix });
+    setScope(scope) {
+        this.scope = scope;
+        this.logWorker.postMessage({ scope });
     }
-    child(newPrefix) {
+    withScope(newScope) {
         return this;
     }
 }

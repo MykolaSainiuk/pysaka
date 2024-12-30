@@ -5,7 +5,7 @@ import { PysakaLogger } from '../src/logger';
 const logger1 = new PysakaLogger({
   format: 'text' as any,
   internalLogs: false,
-  prefix: 'debug.ts',
+  scope: 'debug.ts',
 });
 logger1.log('-------------------->');
 
@@ -30,9 +30,13 @@ logger1.error('some text', 17, null, [1, true], {
 
 logger1.log('<--------------------');
 
-logger1.close().finally(() => {
-  process.stdout.write('All done but process.stdout is still available!\n');
-});
+await logger1.close();
+
+process.stdout.write('All done but process.stdout is still available!\n');
+
+// logger1.close().finally(() => {
+//   process.stdout.write('All done but process.stdout is still available!\n');
+// });
 
 // in order to keep the process running
 // setInterval(() => {}, 1 << 30);

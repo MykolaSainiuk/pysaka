@@ -3,8 +3,8 @@ export const DEFAULT_LOGGER_PARAMS = {
     destination: process.stdout,
     severity: SeverityLevelEnum.INFO,
     format: PrintFormatEnum.JSON,
+    scope: '',
     internalLogs: false,
-    prefix: '',
 };
 export const LOGGER_PREFIX = '[Pysaka]';
 export const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');

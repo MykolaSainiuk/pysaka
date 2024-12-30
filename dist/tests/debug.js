@@ -2,7 +2,7 @@ import { PysakaLogger } from '../src/logger.js';
 const logger1 = new PysakaLogger({
     format: 'text',
     internalLogs: false,
-    prefix: 'debug.ts',
+    scope: 'debug.ts',
 });
 logger1.log('-------------------->');
 logger1.error('msg_text', { error: 'error_text' });
@@ -11,7 +11,6 @@ logger1.error('some text', 17, null, [1, true], {
     'some extra': { a: false, b: [3, 3] },
 });
 logger1.log('<--------------------');
-logger1.close().finally(() => {
-    process.stdout.write('All done but process.stdout is still available!\n');
-});
+await logger1.close();
+process.stdout.write('All done but process.stdout is still available!\n');
 //# sourceMappingURL=debug.js.map

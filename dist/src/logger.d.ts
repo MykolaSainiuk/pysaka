@@ -4,7 +4,7 @@ export declare class PysakaLogger implements IPysakaLogger {
     private destination;
     private severity;
     private format;
-    private prefix;
+    private scope;
     private internalLogs;
     private serializerEncoding;
     private isDestroyed;
@@ -28,7 +28,7 @@ export declare class PysakaLogger implements IPysakaLogger {
     private setupExitHandlers;
     setSeverity(severity: SeverityLevelEnum): void;
     setFormat(format: PrintFormatEnum): void;
-    setPrefix(prefix: string): void;
-    child(newPrefix?: string): this;
+    setScope(scope: string): void;
+    withScope(newScope: string): this;
 }
 export default PysakaLogger;
