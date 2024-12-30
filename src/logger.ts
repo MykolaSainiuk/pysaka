@@ -9,7 +9,7 @@ import {
   BUFFER_LOGS_END_SEPARATOR,
   BUFFER_LOGS_START_SEPARATOR,
   DEFAULT_LOGGER_PARAMS,
-  // EXIT_SIGNALS,
+  EXIT_SIGNALS,
   LOGGER_PREFIX,
 } from './consts';
 import { PrintFormatEnum, SeverityLevelEnum } from './enums';
@@ -48,13 +48,7 @@ export class PysakaLogger implements IPysakaLogger {
     this.prefix = params.prefix;
     this.internalLogs = params.internalLogs ?? false;
 
-    // EXIT_SIGNALS.forEach((event) =>
-    //   process.once(event, async (code) => {
-    //     await this.gracefulShutdown();
-    //     process.exit(Number.isNaN(+code) ? 0 : code);
-    //   }),
-    // );
-    // process.once('exit', this.destructor.bind(this));
+    this.setupExitHandlers();
 
     try {
       this.init();
@@ -232,6 +226,28 @@ export class PysakaLogger implements IPysakaLogger {
     await new Promise((resolve) =>
       this.gracefulShutdown().finally(resolve as never),
     );
+  }
+
+  private setupExitHandlers() {
+    const exitOne = this.destructor.bind(this);
+    const preExitListeners = EXIT_SIGNALS.reduce((obj, event) => {
+      obj[event] = async (code) => {
+        await this.gracefulShutdown();
+        process.removeListener('exit', exitOne);
+        process.exit(Number.isNaN(+code) ? 0 : code);
+      };
+      return obj;
+    }, {});
+
+    EXIT_SIGNALS.forEach((event) =>
+      process.once(event, async () => {
+        Object.entries(preExitListeners)
+          .filter(([key]) => key !== event)
+          .forEach(([key, value]) => process.removeListener(key, value as any));
+        await preExitListeners[event]();
+      }),
+    );
+    process.once('exit', exitOne);
   }
 
   setSeverity(severity: SeverityLevelEnum): void {

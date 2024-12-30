@@ -25,6 +25,7 @@ export declare class PysakaLogger implements IPysakaLogger {
     private destructor;
     gracefulShutdown(): Promise<void>;
     close(): Promise<void>;
+    private setupExitHandlers;
     setSeverity(severity: SeverityLevelEnum): void;
     setFormat(format: PrintFormatEnum): void;
     setPrefix(prefix: string): void;

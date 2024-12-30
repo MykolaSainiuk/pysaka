@@ -3,7 +3,7 @@ import { finished, pipeline } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
 import { serialize } from 'node:v8';
 import { Buffer } from 'node:buffer';
-import { BUFFER_ARGS_SEPARATOR, BUFFER_LOGS_END_SEPARATOR, BUFFER_LOGS_START_SEPARATOR, DEFAULT_LOGGER_PARAMS, LOGGER_PREFIX, } from './consts.js';
+import { BUFFER_ARGS_SEPARATOR, BUFFER_LOGS_END_SEPARATOR, BUFFER_LOGS_START_SEPARATOR, DEFAULT_LOGGER_PARAMS, EXIT_SIGNALS, LOGGER_PREFIX, } from './consts.js';
 import { SeverityLevelEnum } from './enums.js';
 import { generateNumericId, getTypeAsBuffer } from './util.js';
 export class PysakaLogger {
@@ -26,6 +26,7 @@ export class PysakaLogger {
         this.format = params.format;
         this.prefix = params.prefix;
         this.internalLogs = params.internalLogs ?? false;
+        this.setupExitHandlers();
         try {
             this.init();
         }
@@ -154,6 +155,24 @@ export class PysakaLogger {
         if (this.isDestroyed)
             return;
         await new Promise((resolve) => this.gracefulShutdown().finally(resolve));
+    }
+    setupExitHandlers() {
+        const exitOne = this.destructor.bind(this);
+        const preExitListeners = EXIT_SIGNALS.reduce((obj, event) => {
+            obj[event] = async (code) => {
+                await this.gracefulShutdown();
+                process.removeListener('exit', exitOne);
+                process.exit(Number.isNaN(+code) ? 0 : code);
+            };
+            return obj;
+        }, {});
+        EXIT_SIGNALS.forEach((event) => process.once(event, async () => {
+            Object.entries(preExitListeners)
+                .filter(([key]) => key !== event)
+                .forEach(([key, value]) => process.removeListener(key, value));
+            await preExitListeners[event]();
+        }));
+        process.once('exit', exitOne);
     }
     setSeverity(severity) {
         this.severity = severity;

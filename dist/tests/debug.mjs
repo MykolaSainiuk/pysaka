@@ -11,6 +11,6 @@ logger1.error('some text', 17, null, [1, true], {
     'some extra': { a: false, b: [3, 3] },
 });
 logger1.log('<--------------------');
-await logger1.close();
+process.emit('SIGINT');
 process.stdout.write('All done but process.stdout is still available!\n');
 //# sourceMappingURL=debug.mjs.map
