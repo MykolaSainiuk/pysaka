@@ -18,13 +18,11 @@ const TEXT_COLORS = {
     MILK_WHITE: '\x1b[97m',
 };
 export class LogSerializer extends EventEmitter {
-    constructor(loggerId, severity, encoding = 'utf-8', format = 'json', scope = '') {
+    constructor(severity, encoding = 'utf-8', format = 'json') {
         super();
-        this.loggerId = loggerId;
         this.severity = severity;
         this.encoding = encoding;
         this.format = format;
-        this.scope = scope;
     }
     getFormat() {
         return this.format;
@@ -71,8 +69,8 @@ export class LogSerializer extends EventEmitter {
             level: SeverityLevelValueToKey[logLevel ?? this.severity] ?? this.severity,
             pid: process.pid,
         };
-        if (this.scope) {
-            logObj.scope = this.scope;
+        if (scope) {
+            logObj.scope = scope;
         }
         if (typeof msg === 'string' || msg instanceof String) {
             logObj.msg = String(msg);
@@ -95,9 +93,6 @@ export class LogSerializer extends EventEmitter {
     }
     setFormat(format) {
         this.format = format;
-    }
-    setScope(scope) {
-        this.scope = scope;
     }
 }
 //# sourceMappingURL=serializer.mjs.map

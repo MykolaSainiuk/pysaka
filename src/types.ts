@@ -35,3 +35,9 @@ export type LogItem = {
   data?: any[];
   errors?: any[];
 };
+
+export type WorkerData = {
+  severity: SeverityLevelEnum;
+  encoding: BufferEncoding;
+  format: PrintFormatEnum;
+};

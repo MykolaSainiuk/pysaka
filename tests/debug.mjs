@@ -1,4 +1,5 @@
 import { PysakaLogger } from '../dist/src/index.js';
+import { WorkerPool } from '../dist/src/wpool.js';
 
 // NO Test Runner test
 
@@ -10,13 +11,14 @@ const logger1 = new PysakaLogger({
 });
 logger1.log('-------------------->');
 
-// const logger2 = new PysakaLogger({
-//   format: 'json',
-//   internalLogs: true,
-//   prefix: 'logger2',
-// });
-// logger2.warn('Here is another one!!!');
-// logger2.error('msg_text', new Error('Some error'));
+const logger2 = new PysakaLogger({
+  format: 'text',
+  internalLogs: true,
+  scope: 'logger2',
+  severity: 0,
+});
+logger2.warn('Here is another one!!!');
+logger2.error('msg_text', new Error('Some error'));
 logger1.error('msg_text', { error: 'error_text' });
 // logger2.closeSync(); // can be bcz neverSpikeCPU=true
 
@@ -31,7 +33,16 @@ logger1.debug('some text', 17, null, [1, true], {
 
 logger1.log('<--------------------');
 
+const logger3 = new PysakaLogger({
+  format: 'text',
+  severity: 0,
+});
+
+process.stdout.write('worker pool N=' + WorkerPool.__singletonInstance.workersMap.size +'\n');
+
 await logger1.close();
+await logger2.close();
+await logger3.close();
 
 // logger1.close().finally(() => {
 process.stdout.write('All done but process.stdout is still available!\n');

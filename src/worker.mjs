@@ -8,18 +8,18 @@ if (isMainThread) {
 }
 
 const logSerializer = new LogSerializer(
-  workerData.loggerId,
   workerData.severity,
   workerData.encoding,
   workerData.format,
-  workerData.scope,
+  // workerData.scope,
 );
 const format = logSerializer.getFormat();
 
-// copied from src/consts.ts - keep in sync
-const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
-const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', 'utf-8');
-const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', 'utf-8');
+const encoding = workerData.encoding || 'utf-8';
+// copied from src/consts.ts - keep in sync!!
+const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', encoding);
+const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', encoding);
+const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', encoding);
 
 const emptyBuffer = Buffer.alloc(0);
 const parseError = '?parse_err?';
@@ -28,7 +28,7 @@ let contentFromLastBatch = Buffer.from(emptyBuffer);
 
 parentPort.on('message', ({ end, severity, format, scope } = {}) => {
   if (end) {
-    // process.stderr.write('[[[' + contentFromLastBatch.toString('utf-8') + ']]]');
+    // process.stderr.write('[[[' + contentFromLastBatch.toString(encoding) + ']]]');
     if (contentFromLastBatch.length) {
       const { parsed } = parseContent(fullContent);
       process.stdout.write(parsed);
@@ -46,9 +46,9 @@ parentPort.on('message', ({ end, severity, format, scope } = {}) => {
   if (format) {
     logSerializer.setFormat(format);
   }
-  if (scope) {
-    logSerializer.setScope(scope);
-  }
+  // if (scope) {
+  //   logSerializer.setScope(scope);
+  // }
 });
 
 (async () => {
@@ -60,7 +60,7 @@ parentPort.on('message', ({ end, severity, format, scope } = {}) => {
 
   for await (const buf of process.stdin) {
     // process.stderr.write(
-    //   '\nReceived buffer: ' + buf.toString('utf-8') + '\n\n',
+    //   '\nReceived buffer: ' + buf.toString(encoding) + '\n\n',
     // );
     if (!buf.length || !process.stdout.writable) {
       continue;
@@ -77,13 +77,13 @@ parentPort.on('message', ({ end, severity, format, scope } = {}) => {
       rest.indexOf(BUFFER_LOGS_START_SEPARATOR) > -1 &&
       rest.indexOf(BUFFER_LOGS_END_SEPARATOR) > -1
     ) {
-      // process.stderr.write('\nRest buffer: ' + rest.toString('utf-8') + '\n\n');
+      // process.stderr.write('\nRest buffer: ' + rest.toString(encoding) + '\n\n');
       ({ parsed, rest } = parseContent(rest));
       process.stdout.write(parsed);
     }
 
     if (rest?.length) {
-      // process.stderr.write('[[[' + rest.toString('utf-8') + ']]]');
+      // process.stderr.write('[[[' + rest.toString(encoding) + ']]]');
       contentFromLastBatch = Buffer.from(rest?.length ? rest : emptyBuffer);
     }
   }
@@ -92,7 +92,7 @@ parentPort.on('message', ({ end, severity, format, scope } = {}) => {
 })();
 
 function parseContent(buf) {
-  // process.stderr.write('[[[' + buf.toString('utf-8') + ']]]');
+  // process.stderr.write('[[[' + buf.toString(encoding) + ']]]');
   const startIdx = buf.indexOf(BUFFER_LOGS_START_SEPARATOR);
   const endIdx = buf.indexOf(BUFFER_LOGS_END_SEPARATOR, startIdx + 1);
   // TODO: consider a few messages in the buffer
@@ -110,19 +110,19 @@ function parseContent(buf) {
   const lvl = buf.subarray(lastIdx, lastIdx + 1);
   lastIdx += 3; // 2 is for separator and 1 for level digit
 
-  // const postLvlChar = buf.subarray(lastIdx, lastIdx + 2);
-  // let scope = '';
-  // // yes, 0 means equal, damn
-  // if (Buffer.compare(postLvlChar, BUFFER_ARGS_SEPARATOR) === 0) {
-  //   // no scope defined - skipping
-  //   lastIdx += 2;
-  // } else {
-  //   // scope is defined
-  //   const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
-  //   scope = buf.subarray(lastIdx, nextIdx).toString('utf-8');
-  //   // args.push(buf.subarray(lastIdx, nextIdx).toString('utf-8'));
-  //   lastIdx = nextIdx + l;
-  // }
+  const postLvlChar = buf.subarray(lastIdx, lastIdx + 2);
+  let scope = '';
+  // yes, 0 means equal, damn
+  if (Buffer.compare(postLvlChar, BUFFER_ARGS_SEPARATOR) === 0) {
+    // no scope defined - skipping
+    lastIdx += 2;
+  } else {
+    // scope is defined
+    const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
+    scope = buf.subarray(lastIdx, nextIdx).toString(encoding);
+    // args.push(buf.subarray(lastIdx, nextIdx).toString(encoding));
+    lastIdx = nextIdx + l;
+  }
 
   while (lastIdx > -1 && lastIdx < endIdx) {
     const nextIdx = Math.min(
@@ -132,12 +132,12 @@ function parseContent(buf) {
     // process.stderr.write('>>>>>>>>>>>>> nextIdx=' + nextIdx + '\n');
     if (nextIdx === -1) {
       const b = buf.subarray(lastIdx, buf.length - l);
-      // process.stderr.write('>>>>>>>>>>>>> last buffer:' + b.toString('utf-8') + '\n');
+      // process.stderr.write('>>>>>>>>>>>>> last buffer:' + b.toString(encoding) + '\n');
       args.push(deserializeBuffer(b));
       break;
     }
     const b = buf.subarray(lastIdx, nextIdx);
-    // process.stderr.write('>>>>>>>>>>>>> + buffer:' + b.toString('utf-8') + '\n');
+    // process.stderr.write('>>>>>>>>>>>>> + buffer:' + b.toString(encoding) + '\n');
     args.push(deserializeBuffer(b));
     lastIdx = nextIdx + l;
   }
@@ -151,7 +151,7 @@ function parseContent(buf) {
       ? logSerializer.serializeText(args, lvl, scope)
       : logSerializer.serializeJSON(args, lvl, scope);
 
-  // process.stderr.write('-> bufferContent:' + bufferContent.toString('utf-8') + '\n');
+  // process.stderr.write('-> bufferContent:' + bufferContent.toString(encoding) + '\n');
   return {
     parsed: bufferContent,
     rest:
@@ -163,15 +163,15 @@ function parseContent(buf) {
 
 function deserializeBuffer(buffer) {
   // first buffer el is the type but do not take by index
-  const type = Number.parseInt(buffer.slice(0, 1).toString('utf-8'), 10);
+  const type = Number.parseInt(buffer.slice(0, 1).toString(encoding), 10);
   // process.stderr.write('<<<<< + type[' + type + ']\n');
 
   const buf = buffer.slice(1);
-  // process.stderr.write('<<<<< + buffer[' + buf.toString('utf-8') + ']\n');
+  // process.stderr.write('<<<<< + buffer[' + buf.toString(encoding) + ']\n');
   const typeAsStr = getTypeByBuffer(type);
   // process.stderr.write('<<<<< + typeAsStr[' + typeAsStr + ']\n');
   if (typeAsStr !== 'object') {
-    return castBufferToPrimitive(buf.toString('utf-8'), typeAsStr);
+    return castBufferToPrimitive(buf.toString(encoding), typeAsStr);
   }
 
   try {

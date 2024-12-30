@@ -4,11 +4,12 @@ import { LogSerializer } from './serializer.mjs';
 if (isMainThread) {
     throw new Error('This file is not intended be loaded in the main thread');
 }
-const logSerializer = new LogSerializer(workerData.loggerId, workerData.severity, workerData.encoding, workerData.format, workerData.scope);
+const logSerializer = new LogSerializer(workerData.severity, workerData.encoding, workerData.format);
 const format = logSerializer.getFormat();
-const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
-const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', 'utf-8');
-const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', 'utf-8');
+const encoding = workerData.encoding || 'utf-8';
+const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', encoding);
+const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', encoding);
+const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', encoding);
 const emptyBuffer = Buffer.alloc(0);
 const parseError = '?parse_err?';
 let contentFromLastBatch = Buffer.from(emptyBuffer);
@@ -28,9 +29,6 @@ parentPort.on('message', ({ end, severity, format, scope } = {}) => {
     }
     if (format) {
         logSerializer.setFormat(format);
-    }
-    if (scope) {
-        logSerializer.setScope(scope);
     }
 });
 (async () => {
@@ -71,6 +69,16 @@ function parseContent(buf) {
     const l = BUFFER_ARGS_SEPARATOR.length;
     const lvl = buf.subarray(lastIdx, lastIdx + 1);
     lastIdx += 3;
+    const postLvlChar = buf.subarray(lastIdx, lastIdx + 2);
+    let scope = '';
+    if (Buffer.compare(postLvlChar, BUFFER_ARGS_SEPARATOR) === 0) {
+        lastIdx += 2;
+    }
+    else {
+        const nextIdx = buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1);
+        scope = buf.subarray(lastIdx, nextIdx).toString(encoding);
+        lastIdx = nextIdx + l;
+    }
     while (lastIdx > -1 && lastIdx < endIdx) {
         const nextIdx = Math.min(buf.indexOf(BUFFER_ARGS_SEPARATOR, lastIdx + 1), buf.indexOf(BUFFER_LOGS_END_SEPARATOR, lastIdx + 1));
         if (nextIdx === -1) {
@@ -93,11 +101,11 @@ function parseContent(buf) {
     };
 }
 function deserializeBuffer(buffer) {
-    const type = Number.parseInt(buffer.slice(0, 1).toString('utf-8'), 10);
+    const type = Number.parseInt(buffer.slice(0, 1).toString(encoding), 10);
     const buf = buffer.slice(1);
     const typeAsStr = getTypeByBuffer(type);
     if (typeAsStr !== 'object') {
-        return castBufferToPrimitive(buf.toString('utf-8'), typeAsStr);
+        return castBufferToPrimitive(buf.toString(encoding), typeAsStr);
     }
     try {
         return deserialize(buf);

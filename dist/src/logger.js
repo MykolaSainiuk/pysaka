@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { finished, pipeline } from 'node:stream/promises';
-import { Worker } from 'node:worker_threads';
 import { serialize } from 'node:v8';
 import { Buffer } from 'node:buffer';
 import { BUFFER_ARGS_SEPARATOR, BUFFER_LOGS_END_SEPARATOR, BUFFER_LOGS_START_SEPARATOR, DEFAULT_LOGGER_PARAMS, EXIT_SIGNALS, LOGGER_PREFIX, } from './consts.js';
 import { SeverityLevelEnum } from './enums.js';
 import { generateNumericId, getTypeAsBuffer } from './util.js';
+import { WorkerPool } from './wpool.js';
 export class PysakaLogger {
     destination;
     severity;
@@ -14,8 +13,10 @@ export class PysakaLogger {
     internalLogs = false;
     serializerEncoding = 'utf-8';
     isDestroyed = false;
+    parentLoggerId;
     loggerId;
     logWorker;
+    workerPool;
     constructor(__params) {
         const params = { ...DEFAULT_LOGGER_PARAMS, ...__params };
         this.destination = params.destination;
@@ -26,6 +27,8 @@ export class PysakaLogger {
         this.format = params.format;
         this.scope = params.scope;
         this.internalLogs = params.internalLogs ?? false;
+        this.loggerId = generateNumericId(10);
+        this.workerPool = new WorkerPool();
         this.setupExitHandlers();
         try {
             this.init();
@@ -61,21 +64,10 @@ export class PysakaLogger {
             process.stdout.write(`${LOGGER_PREFIX} Logger is initialized\n`);
     }
     initWorker() {
-        this.loggerId = generateNumericId(10);
-        const dirname = import.meta.dirname;
-        const workerPath = path.join(dirname, 'worker.mjs');
-        this.logWorker = new Worker(workerPath, {
-            name: this.loggerId,
-            stdout: true,
-            stdin: true,
-            stderr: false,
-            workerData: {
-                loggerId: this.loggerId,
-                severity: this.severity,
-                encoding: this.serializerEncoding,
-                format: this.format,
-                scope: this.scope,
-            },
+        this.logWorker = this.workerPool.getWorker({
+            severity: this.severity,
+            encoding: this.serializerEncoding,
+            format: this.format,
         });
         this.internalLogs &&
             process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
@@ -105,6 +97,10 @@ export class PysakaLogger {
             Buffer.from(String(logLevel)),
             BUFFER_ARGS_SEPARATOR,
         ];
+        if (this.scope) {
+            buffers.push(Buffer.from(this.scope, this.serializerEncoding));
+        }
+        buffers.push(BUFFER_ARGS_SEPARATOR);
         const l = args.length;
         for (let i = 0; i < l; i++) {
             const item = args[i] instanceof Error
@@ -115,7 +111,7 @@ export class PysakaLogger {
                 : args[i];
             const itemBuf = item === Object(item)
                 ? serialize(item)
-                : Buffer.from(String(item), 'utf-8');
+                : Buffer.from(String(item), this.serializerEncoding);
             const type = getTypeAsBuffer(item);
             buffers.push(type, itemBuf);
             i < l - 1 && buffers.push(BUFFER_ARGS_SEPARATOR);
@@ -184,10 +180,11 @@ export class PysakaLogger {
     }
     setScope(scope) {
         this.scope = scope;
-        this.logWorker.postMessage({ scope });
     }
-    withScope(newScope) {
-        return this;
+    child(params) {
+        const l = new PysakaLogger(params);
+        l.parentLoggerId = this.loggerId;
+        return l;
     }
 }
 export default PysakaLogger;
