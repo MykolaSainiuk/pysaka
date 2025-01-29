@@ -47,7 +47,7 @@ export class LogSerializer extends EventEmitter {
         const ll = logLevel ?? this.severity;
         const llc = logLevel >= 3
             ? TEXT_COLORS.RED
-            : ll == 2
+            : ll == 0
                 ? TEXT_COLORS.YELLOW
                 : TEXT_COLORS.GREEN;
         let str = `[${timeStr}] ${llc}${logObj.level}${cReset} (${logObj.pid})`;

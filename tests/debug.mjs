@@ -6,6 +6,7 @@ const logger1 = new PysakaLogger({
   format: 'text',
   internalLogs: false,
   prefix: 'debug.ts',
+  severity: 0,
 });
 logger1.log('-------------------->');
 
@@ -16,7 +17,7 @@ logger1.log('-------------------->');
 // });
 // logger2.warn('Here is another one!!!');
 // logger2.error('msg_text', new Error('Some error'));
-logger1.error('msg_text', { error: 'error_text' });
+logger1.debug('msg_text', { error: 'error_text' });
 // logger2.closeSync(); // can be bcz neverSpikeCPU=true
 
 // setTimeout(() => logger2.closeSync(), 1000);

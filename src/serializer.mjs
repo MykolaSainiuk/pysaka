@@ -63,7 +63,7 @@ export class LogSerializer extends EventEmitter {
     const llc =
       logLevel >= 3
         ? TEXT_COLORS.RED
-        : ll == 2
+        : ll == 0
         ? TEXT_COLORS.YELLOW
         : TEXT_COLORS.GREEN;
 
