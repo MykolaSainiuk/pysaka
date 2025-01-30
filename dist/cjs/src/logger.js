@@ -1,12 +1,19 @@
-import path from 'node:path';
-import { finished, pipeline } from 'node:stream/promises';
-import { Worker } from 'node:worker_threads';
-import { serialize } from 'node:v8';
-import { Buffer } from 'node:buffer';
-import { BUFFER_ARGS_SEPARATOR, BUFFER_LOGS_END_SEPARATOR, BUFFER_LOGS_START_SEPARATOR, DEFAULT_LOGGER_PARAMS, LOGGER_PREFIX, } from './consts.js';
-import { SeverityLevelEnum } from './enums.js';
-import { generateNumericId, getTypeAsBuffer } from './util.js';
-export class PysakaLogger {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PysakaLogger = void 0;
+const node_path_1 = __importDefault(require("node:path"));
+const promises_1 = require("node:stream/promises");
+const node_worker_threads_1 = require("node:worker_threads");
+const node_v8_1 = require("node:v8");
+const node_buffer_1 = require("node:buffer");
+const consts_1 = require("./consts");
+const enums_1 = require("./enums");
+const util_1 = require("./util");
+const dirname_1 = require("./dirname");
+class PysakaLogger {
     destination;
     severity;
     format;
@@ -17,10 +24,10 @@ export class PysakaLogger {
     loggerId;
     logWorker;
     constructor(__params) {
-        const params = { ...DEFAULT_LOGGER_PARAMS, ...__params };
+        const params = { ...consts_1.DEFAULT_LOGGER_PARAMS, ...__params };
         this.destination = params.destination;
         if (!this.destination.writable) {
-            throw new Error(`${LOGGER_PREFIX} Destination is not writable`);
+            throw new Error(`${consts_1.LOGGER_PREFIX} Destination is not writable`);
         }
         this.severity = params.severity;
         this.format = params.format;
@@ -30,40 +37,40 @@ export class PysakaLogger {
             this.init();
         }
         catch (err) {
-            process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
+            process.stderr.write(consts_1.LOGGER_PREFIX + ' ' + err.message + '\n');
             this.destructor();
-            throw new Error(`${LOGGER_PREFIX} Failed to initialize logger`);
+            throw new Error(`${consts_1.LOGGER_PREFIX} Failed to initialize logger`);
         }
     }
     log(...args) {
-        return this.write(SeverityLevelEnum.INFO, ...args);
+        return this.write(enums_1.SeverityLevelEnum.INFO, ...args);
     }
     info(...args) {
-        return this.write(SeverityLevelEnum.INFO, ...args);
+        return this.write(enums_1.SeverityLevelEnum.INFO, ...args);
     }
     warn(...args) {
-        return this.write(SeverityLevelEnum.WARN, ...args);
+        return this.write(enums_1.SeverityLevelEnum.WARN, ...args);
     }
     error(...args) {
-        return this.write(SeverityLevelEnum.ERROR, ...args);
+        return this.write(enums_1.SeverityLevelEnum.ERROR, ...args);
     }
     debug(...args) {
-        return this.write(SeverityLevelEnum.DEBUG, ...args);
+        return this.write(enums_1.SeverityLevelEnum.DEBUG, ...args);
     }
     fatal(...args) {
-        return this.write(SeverityLevelEnum.FATAL, ...args);
+        return this.write(enums_1.SeverityLevelEnum.FATAL, ...args);
     }
     init() {
         this.initWorker();
         this.setupPipeline();
         this.internalLogs &&
-            process.stdout.write(`${LOGGER_PREFIX} Logger is initialized\n`);
+            process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is initialized\n`);
     }
     initWorker() {
-        this.loggerId = generateNumericId(10);
-        const dirname = import.meta.dirname;
-        const workerPath = path.join(dirname, 'worker.mjs');
-        this.logWorker = new Worker(workerPath, {
+        this.loggerId = (0, util_1.generateNumericId)(10);
+        const dirname = (0, dirname_1.getDirName)();
+        const workerPath = node_path_1.default.join(dirname, 'worker.js');
+        this.logWorker = new node_worker_threads_1.Worker(workerPath, {
             name: this.loggerId,
             stdout: true,
             stdin: true,
@@ -77,22 +84,22 @@ export class PysakaLogger {
             },
         });
         this.internalLogs &&
-            process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
+            process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's worker is initialized\n`);
     }
     setupPipeline() {
-        pipeline(this.logWorker.stdout, this.destination, { end: false })
+        (0, promises_1.pipeline)(this.logWorker.stdout, this.destination, { end: false })
             .then(() => this.internalLogs &&
-            process.stdout.write(`${LOGGER_PREFIX} Pipeline logWorker.stdout->destination had no errors\n`))
+            process.stdout.write(`${consts_1.LOGGER_PREFIX} Pipeline logWorker.stdout->destination had no errors\n`))
             .catch(this.handleStreamError.bind(this));
         this.internalLogs &&
-            process.stdout.write(`${LOGGER_PREFIX} Logger's stream's pipeline is ready\n`);
+            process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger's stream's pipeline is ready\n`);
     }
     handleStreamError(err) {
         if (this.isDestroyed)
             return;
         if (err) {
-            process.stderr.write(`${LOGGER_PREFIX} Pipeline logWorker.stdout->destination has failed\n`);
-            process.stderr.write(LOGGER_PREFIX + ' ' + err.message + '\n');
+            process.stderr.write(`${consts_1.LOGGER_PREFIX} Pipeline logWorker.stdout->destination has failed\n`);
+            process.stderr.write(consts_1.LOGGER_PREFIX + ' ' + err.message + '\n');
         }
     }
     write(logLevel, ...args) {
@@ -100,9 +107,9 @@ export class PysakaLogger {
             return this;
         }
         const buffers = [
-            BUFFER_LOGS_START_SEPARATOR,
-            Buffer.from(String(logLevel)),
-            BUFFER_ARGS_SEPARATOR,
+            consts_1.BUFFER_LOGS_START_SEPARATOR,
+            node_buffer_1.Buffer.from(String(logLevel)),
+            consts_1.BUFFER_ARGS_SEPARATOR,
         ];
         const l = args.length;
         for (let i = 0; i < l; i++) {
@@ -113,14 +120,14 @@ export class PysakaLogger {
                 }
                 : args[i];
             const itemBuf = item === Object(item)
-                ? serialize(item)
-                : Buffer.from(String(item), 'utf-8');
-            const type = getTypeAsBuffer(item);
+                ? (0, node_v8_1.serialize)(item)
+                : node_buffer_1.Buffer.from(String(item), 'utf-8');
+            const type = (0, util_1.getTypeAsBuffer)(item);
             buffers.push(type, itemBuf);
-            i < l - 1 && buffers.push(BUFFER_ARGS_SEPARATOR);
+            i < l - 1 && buffers.push(consts_1.BUFFER_ARGS_SEPARATOR);
         }
-        buffers.push(BUFFER_LOGS_END_SEPARATOR);
-        const bufToSend = Buffer.concat(buffers);
+        buffers.push(consts_1.BUFFER_LOGS_END_SEPARATOR);
+        const bufToSend = node_buffer_1.Buffer.concat(buffers);
         this.logWorker.stdin.write(bufToSend);
         return this;
     }
@@ -133,16 +140,16 @@ export class PysakaLogger {
             this.logWorker.terminate();
         }
         this.internalLogs &&
-            process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
+            process.stdout.write(`${consts_1.LOGGER_PREFIX} Logger is shut down\n`);
     }
     async gracefulShutdown() {
         if (this.isDestroyed)
             return;
         this.logWorker.postMessage({ end: true });
-        await finished(this.logWorker.stdout);
+        await (0, promises_1.finished)(this.logWorker.stdout);
         await Promise.all([
             this.logWorker.stdin.end(),
-            finished(this.logWorker.stdin),
+            (0, promises_1.finished)(this.logWorker.stdin),
         ]);
         await Promise.all([
             new Promise((resolve) => this.destination.once('drain', resolve)),
@@ -171,5 +178,5 @@ export class PysakaLogger {
         return this;
     }
 }
-export default PysakaLogger;
-//# sourceMappingURL=logger.js.map
+exports.PysakaLogger = PysakaLogger;
+exports.default = PysakaLogger;

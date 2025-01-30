@@ -1,13 +1,13 @@
 {
   "name": "pysaka",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "Async threaded logger",
-  "type": "module",
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
-  "module": "./dist/src/index.js",
+  "main": "./dist/cjs/src/index.js",
+  "types": "./dist/mjs/src/index.d.ts",
+  "module": "./dist/mjs/src/index.mjs",
   "files": [
-    "dist/src"
+    "dist/mjs/src",
+    "dist/cjs/src"
   ],
   "scripts": {
     "prebuild": "rimraf ./dist",
@@ -17,12 +17,14 @@
     "test:cov": "npm run build:test && node --test --experimental-test-coverage --test-reporter=spec ./dist/tests/index.js",
     "lint": "eslint --ext .ts .",
     "format": "prettier --write \"./**/*.ts\"",
-    "build": "tsc -p ./tsconfig.json",
-    "build:test": "npm run build",
-    "postbuild": "npx -y fix-esm-import-path ./dist",
-    "start": "node ./dist/index.js",
+    "build:test": "tsc -p ./tsconfig.json",
+    "build:esm": "tsc -p ./tsconfig.esm.json && npm run build:fix && cd ./dist/mjs/src && rm ./dirname.js && mv ./dirname.mjs ./dirname.js && mv ./index.js ./index.mjs",
+    "build:cjs": "tsc -p ./tsconfig.cjs.json && cd ./dist/cjs/src && rm ./dirname.mjs && rm ./dirname.js && mv ./dirname.cjs ./dirname.js",
+    "build:both": "npm run build:esm && npm run build:cjs",
+    "build:fix": "npx -y fix-esm-import-path ./dist/mjs/src",
+    "start": "node ./dist/mjs/src/index.mjs",
     "dev": "ts-node ./src",
-    "prepublish": "npm run build"
+    "prepublish": "npm run build:prod"
   },
   "keywords": [
     "nodejs",

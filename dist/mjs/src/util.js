@@ -27,4 +27,3 @@ export const getTypeAsBuffer = (value) => {
             return BUFFER_OBJECT_TYPE;
     }
 };
-//# sourceMappingURL=util.js.map

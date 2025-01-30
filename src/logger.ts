@@ -19,6 +19,7 @@ import type {
   PysakaLoggerParams,
 } from './types';
 import { generateNumericId, getTypeAsBuffer } from './util';
+import { getDirName } from './dirname';
 // import { once } from 'node:events';
 
 // EventEmitter.defaultMaxListeners = 100;
@@ -97,8 +98,8 @@ export class PysakaLogger implements IPysakaLogger {
   private initWorker() {
     this.loggerId = generateNumericId(10);
 
-    const dirname = import.meta.dirname;
-    const workerPath = path.join(dirname, 'worker.mjs');
+    const dirname = getDirName();
+    const workerPath = path.join(dirname, 'worker.js');
 
     this.logWorker = new Worker(workerPath, {
       name: this.loggerId,

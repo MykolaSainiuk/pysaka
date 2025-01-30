@@ -1,12 +1,6 @@
 {
-  "ts-node": {
-      "esm": true,
-      "compiler": "typescript",
-      "experimentalSpecifierResolution": "node",
-      "transpileOnly": true,
-  },
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "CommonJS",
     "target": "ESNext",
     "moduleResolution": "Node",
     "declaration": true,
@@ -15,9 +9,9 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "sourceMap": true,
+    "sourceMap": false,
     "rootDir": "./",
-    "outDir": "./dist",
+    "outDir": "./dist/cjs",
     "baseUrl": "./",
     "incremental": false,
     "types": [ "node" ],
@@ -28,11 +22,9 @@
     "src/**/*.js",
     "src/**/*.mjs",
     "src/**/*.cjs",
-    "tests/**/*.ts",
-    "tests/**/*.js",
-    "tests/**/*.mjs",
   ],
   "exclude": [
+    "test",
     "node_modules",
     "dist",
     "__temp"

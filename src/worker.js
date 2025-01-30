@@ -1,7 +1,7 @@
 import { isMainThread, workerData, parentPort } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
 
-import { LogSerializer } from './serializer.mjs';
+import { LogSerializer } from './serializer.js';
 
 if (isMainThread) {
   throw new Error('This file is not intended be loaded in the main thread');

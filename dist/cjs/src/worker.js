@@ -1,10 +1,12 @@
-import { isMainThread, workerData, parentPort } from 'node:worker_threads';
-import { deserialize } from 'node:v8';
-import { LogSerializer } from './serializer.mjs';
-if (isMainThread) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const node_worker_threads_1 = require("node:worker_threads");
+const node_v8_1 = require("node:v8");
+const serializer_js_1 = require("./serializer.js");
+if (node_worker_threads_1.isMainThread) {
     throw new Error('This file is not intended be loaded in the main thread');
 }
-const logSerializer = new LogSerializer(workerData.loggerId, workerData.severity, workerData.encoding, workerData.format, workerData.prefix);
+const logSerializer = new serializer_js_1.LogSerializer(node_worker_threads_1.workerData.loggerId, node_worker_threads_1.workerData.severity, node_worker_threads_1.workerData.encoding, node_worker_threads_1.workerData.format, node_worker_threads_1.workerData.prefix);
 const format = logSerializer.getFormat();
 const BUFFER_ARGS_SEPARATOR = Buffer.from('¦', 'utf-8');
 const BUFFER_LOGS_START_SEPARATOR = Buffer.from('¿', 'utf-8');
@@ -12,7 +14,7 @@ const BUFFER_LOGS_END_SEPARATOR = Buffer.from('¬', 'utf-8');
 const emptyBuffer = Buffer.alloc(0);
 const parseError = '?parse_err?';
 let contentFromLastBatch = Buffer.from(emptyBuffer);
-parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
+node_worker_threads_1.parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
     if (end) {
         if (contentFromLastBatch.length) {
             const { parsed } = parseContent(fullContent);
@@ -20,7 +22,7 @@ parentPort.on('message', ({ end, severity, format, prefix } = {}) => {
         }
         process.stdin.emit('end');
         process.stdout.writableEnded || process.stdout.end();
-        parentPort.removeAllListeners();
+        node_worker_threads_1.parentPort.removeAllListeners();
         return;
     }
     if (severity) {
@@ -100,7 +102,7 @@ function deserializeBuffer(buffer) {
         return castBufferToPrimitive(buf.toString('utf-8'), typeAsStr);
     }
     try {
-        return deserialize(buf);
+        return (0, node_v8_1.deserialize)(buf);
     }
     catch (err) {
         process.stderr.write('Error deserializing buffer:' + err.message + '\n');
@@ -145,4 +147,3 @@ function castBufferToPrimitive(bufferAsStr, type) {
             return parseError;
     }
 }
-//# sourceMappingURL=worker.mjs.map

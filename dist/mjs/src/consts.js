@@ -34,4 +34,3 @@ export const EXIT_SIGNALS = [
     'SIGUSR2',
     'SIGTERM',
 ];
-//# sourceMappingURL=consts.js.map

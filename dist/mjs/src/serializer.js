@@ -97,4 +97,3 @@ export class LogSerializer extends EventEmitter {
         this.prefix = prefix;
     }
 }
-//# sourceMappingURL=serializer.mjs.map
