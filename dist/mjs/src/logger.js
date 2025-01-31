@@ -77,6 +77,7 @@ export class PysakaLogger {
                 prefix: this.prefix,
             },
         });
+        this.logWorker.unref();
         this.internalLogs &&
             process.stdout.write(`${LOGGER_PREFIX} Logger's worker is initialized\n`);
     }
@@ -125,13 +126,13 @@ export class PysakaLogger {
         this.logWorker.stdin.write(bufToSend);
         return this;
     }
-    destructor() {
+    async destructor() {
         if (this.isDestroyed)
             return;
         this.isDestroyed = true;
         if (this.logWorker) {
             this.logWorker.removeAllListeners();
-            this.logWorker.terminate();
+            await this.logWorker.terminate();
         }
         this.internalLogs &&
             process.stdout.write(`${LOGGER_PREFIX} Logger is shut down\n`);
@@ -145,11 +146,29 @@ export class PysakaLogger {
             this.logWorker.stdin.end(),
             finished(this.logWorker.stdin),
         ]);
-        await Promise.all([
-            new Promise((resolve) => this.destination.once('drain', resolve)),
-            setTimeout(() => this.destination.emit('drain'), 1),
+        await Promise.race([
+            Promise.all([
+                new Promise((resolve, reject) => {
+                    try {
+                        this.destination.once('drain', resolve);
+                    }
+                    catch (err) {
+                        reject(err);
+                    }
+                }),
+                new Promise((resolve, reject) => {
+                    try {
+                        this.destination.emit('drain');
+                    }
+                    catch (err) {
+                        reject(err);
+                    }
+                    resolve(void 0);
+                }),
+            ]),
+            new Promise((resolve) => setTimeout(() => resolve(void 0), 250)),
         ]);
-        this.destructor();
+        await this.destructor();
     }
     async close() {
         if (this.isDestroyed)

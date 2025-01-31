@@ -117,7 +117,7 @@ export class PysakaLogger implements IPysakaLogger {
         prefix: this.prefix,
       },
     });
-    // this.logWorker.unref();
+    this.logWorker.unref();
     // this.logWorker.stderr.pipe(process.stderr, { end: false });
 
     this.internalLogs &&
@@ -192,14 +192,13 @@ export class PysakaLogger implements IPysakaLogger {
     return this;
   }
 
-  private destructor() {
+  private async destructor() {
     if (this.isDestroyed) return;
     this.isDestroyed = true;
 
     if (this.logWorker) {
-      // this.logWorker.unref();
       this.logWorker.removeAllListeners();
-      this.logWorker.terminate();
+      await this.logWorker.terminate();
     }
 
     this.internalLogs &&
@@ -222,12 +221,28 @@ export class PysakaLogger implements IPysakaLogger {
     ]);
 
     // force "flush" under/into destination
-    await Promise.all([
-      new Promise((resolve) => this.destination.once('drain', resolve)),
-      setTimeout(() => this.destination.emit('drain'), 1),
+    await Promise.race([
+      Promise.all([
+        new Promise((resolve, reject) => {
+          try {
+            this.destination.once('drain', resolve);
+          } catch (err) {
+            reject(err);
+          }
+        }),
+        new Promise((resolve, reject) => {
+          try {
+            this.destination.emit('drain');
+          } catch (err) {
+            reject(err);
+          }
+          resolve(void 0);
+        }),
+      ]),
+      new Promise((resolve) => setTimeout(() => resolve(void 0), 250)),
     ]);
 
-    this.destructor();
+    await this.destructor();
   }
 
   public async close() {
