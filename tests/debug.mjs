@@ -1,4 +1,4 @@
-import { PysakaLogger } from '../dist/src/index.js';
+import { PysakaLogger } from '../dist/mjs/src/index.mjs';
 
 // NO Test Runner test
 

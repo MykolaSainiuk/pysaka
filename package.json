@@ -1,10 +1,15 @@
 {
   "name": "pysaka",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Async threaded logger",
-  "main": "./dist/cjs/src/index.js",
+  "type": "module",
   "types": "./dist/mjs/src/index.d.ts",
-  "module": "./dist/mjs/src/index.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/mjs/src/index.mjs",
+      "require": "./dist/cjs/src/index.cjs"
+    }
+  },
   "files": [
     "dist/mjs/src",
     "dist/cjs/src"
@@ -17,22 +22,23 @@
     "test:cov": "npm run build:test && node --test --experimental-test-coverage --test-reporter=spec ./dist/tests/index.js",
     "lint": "eslint --ext .ts .",
     "format": "prettier --write \"./**/*.ts\"",
-    "build:test": "tsc -p ./tsconfig.json",
-    "build:esm": "tsc -p ./tsconfig.esm.json && npm run build:fix && cd ./dist/mjs/src && rm ./dirname.js && mv ./dirname.mjs ./dirname.js && mv ./index.js ./index.mjs",
-    "build:cjs": "tsc -p ./tsconfig.cjs.json && cd ./dist/cjs/src && rm ./dirname.mjs && rm ./dirname.js && mv ./dirname.cjs ./dirname.js",
-    "build:both": "npm run build:esm && npm run build:cjs",
+    "build:test": "tsc -p ./tsconfig.json && npx -y fix-esm-import-path ./dist/tests",
+    "build:mjs": "tsc -p ./tsconfig.esm.json && npm run build:fix && ./scripts/mjs.build.sh",
+    "build:cjs": "tsc -p ./tsconfig.cjs.json && ./scripts/cjs.build.sh",
+    "build:both": "npm run build:mjs && npm run build:cjs",
     "build:fix": "npx -y fix-esm-import-path ./dist/mjs/src",
     "start": "node ./dist/mjs/src/index.mjs",
     "dev": "ts-node ./src",
     "prepublish": "npm run build:prod"
   },
   "keywords": [
+    "pysaka",
     "nodejs",
     "logger",
     "async",
     "logger",
     "threads",
-    "pysaka"
+    "zero-dependency"
   ],
   "homepage": "https://github.com/MykolaSainiuk/pysaka/blob/master/README.md",
   "author": "Mykola Sainiuk",

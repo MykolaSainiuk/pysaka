@@ -1,9 +1,9 @@
-import { PysakaLogger } from '../src/logger';
+const { PysakaLogger } = require('../dist/cjs/src/index.cjs');
 
 // NO Test Runner test
 
 const logger1 = new PysakaLogger({
-  format: 'text' as any,
+  format: 'text',
   internalLogs: false,
   prefix: 'debug.ts',
   severity: 0,
@@ -11,20 +11,20 @@ const logger1 = new PysakaLogger({
 logger1.log('-------------------->');
 
 // const logger2 = new PysakaLogger({
-//   format: 'json' as any,
+//   format: 'json',
 //   internalLogs: true,
 //   prefix: 'logger2',
 // });
 // logger2.warn('Here is another one!!!');
 // logger2.error('msg_text', new Error('Some error'));
-logger1.error('msg_text', { error: 'error_text' });
+logger1.debug('msg_text', { error: 'error_text' });
 // logger2.closeSync(); // can be bcz neverSpikeCPU=true
 
 // setTimeout(() => logger2.closeSync(), 1000);
 // process.exit(0);
 // throw new Error('exit uncaught error');
 
-logger1.debug('some text', 17, null, [1, true], {
+logger1.error('some text', 17, null, [1, true], {
   foo: 'bar',
   'some extra': { a: false, b: [3, 3] },
 });

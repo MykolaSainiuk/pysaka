@@ -136,3 +136,7 @@ In details:
 ## Does not do what I want
 
 So open an issue on github and I will code it for you if it makes sense.
+
+## Known difficulties
+
+Jest + EMS aren't frieds. It forces you to run your deps as CJS. If you face issues running `pysaka` via Jest, use `PYSAKALOGGER_FILE_EXT=cjs` node env var.

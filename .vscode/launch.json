@@ -15,7 +15,7 @@
             // "preLaunchTask": "tsc: build - tsconfig.json",
             "program": "${workspaceFolder}/tests/debug.ts",
             "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
+                "${workspaceFolder}/dist/**/*"
             ],
             "env": {
                 "NODE_OPTIONS": "--loader ts-node/esm",
@@ -37,7 +37,25 @@
             // "preLaunchTask": "tsc: build - tsconfig.json",
             "program": "${workspaceFolder}/tests/debug.mjs",
             "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
+                "${workspaceFolder}/dist/**/*"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "restart": true,
+            "showAsyncStacks": true,
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "tests/debug.cjs",
+            "skipFiles": ["<node_internals>/**", "node_modules/**"],
+            "sourceMaps": true,
+            "stopOnEntry": false,
+            // "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node-esm",
+            // "preLaunchTask": "tsc: build - tsconfig.json",
+            "program": "${workspaceFolder}/tests/debug.cjs",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -52,7 +70,7 @@
             "program": "${workspaceFolder}/dist/tests/index.js",
             // "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
+                "${workspaceFolder}/dist/**/*"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
