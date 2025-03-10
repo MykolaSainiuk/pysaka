@@ -1,2 +1,0 @@
-- child(prefix) or withPrefix(prefix) or setScope() in order to handle Nest.js use case of creating a new instance of the logger within each new component
-- update test/index.ts with more meaningful cases
