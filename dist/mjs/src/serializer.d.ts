@@ -9,7 +9,7 @@ export class LogSerializer extends EventEmitter<[never]> {
     serializeJSON(args: any, logLevel: any): Buffer;
     serializeText(args: any, logLevel: any): Buffer;
     getLogItem([msg, ...rest]: [any, ...any[]], logLevel: any): {
-        time: number;
+        time: string;
         level: any;
         pid: number;
     };

@@ -64,7 +64,7 @@ export class LogSerializer extends EventEmitter {
     }
     getLogItem([msg, ...rest], logLevel) {
         const logObj = {
-            time: Date.now(),
+            time: new Date().toISOString(),
             level: SeverityLevelValueToKey[logLevel ?? this.severity] ?? this.severity,
             pid: process.pid,
         };
