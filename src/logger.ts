@@ -99,9 +99,10 @@ export class PysakaLogger implements IPysakaLogger {
     this.loggerId = generateNumericId(10);
 
     const dirname = getDirName();
+    const defaultExt = typeof __dirname !== 'undefined' ? 'cjs' : 'mjs';
     const workerPath = path.join(
       dirname,
-      'worker.' + (process.env.PYSAKALOGGER_FILE_EXT || 'mjs'),
+      'worker.' + (process.env.PYSAKALOGGER_FILE_EXT || defaultExt),
     );
 
     this.logWorker = new Worker(workerPath, {
