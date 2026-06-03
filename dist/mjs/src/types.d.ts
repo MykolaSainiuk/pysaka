@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { Writable } from 'node:stream';
 import { PrintFormatEnum, SeverityLevelEnum } from './enums.js';
 export type DestinationType = Writable;
